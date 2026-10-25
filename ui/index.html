@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en" data-theme="oled">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spiderflayer Launcher</title>
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="bg"></div>
+
+  <div id="app">
+    <nav id="rail" class="glass" aria-label="Main"></nav>
+
+    <div id="main">
+      <header id="top" class="glass" data-tauri-drag-region>
+        <button class="icon-btn" id="back" aria-label="Back" title="Back"></button>
+        <div id="crumb" data-tauri-drag-region></div>
+        <div class="grow" data-tauri-drag-region></div>
+        <div id="runstate"></div>
+        <div class="wc">
+          <button class="icon-btn" id="wmin" aria-label="Minimize"></button>
+          <button class="icon-btn" id="wmax" aria-label="Maximize"></button>
+          <button class="icon-btn close" id="wclose" aria-label="Close"></button>
+        </div>
+      </header>
+      <main id="view"></main>
+    </div>
+  </div>
+
+  <div id="progress" class="glass" hidden>
+    <div class="p-msg"></div>
+    <div class="bar"><i></i></div>
+  </div>
+  <div id="toasts"></div>
+  <div id="modal-root"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
