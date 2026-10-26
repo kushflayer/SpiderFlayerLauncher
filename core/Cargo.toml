@@ -13,3 +13,6 @@ md5 = "0.7"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 urlencoding = "2"
 dirs = "5"
+sha2 = "0.10"
+base64 = "0.22"
+getrandom = "0.2"

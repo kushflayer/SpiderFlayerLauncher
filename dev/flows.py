@@ -21,8 +21,7 @@ try:
         check("short name shows error toast", pg.locator(".toast.error").count()>=1)
         pg.fill("#off-name","Steve_01"); pg.click('[data-act="acct-offline"]'); pg.wait_for_timeout(200)
         check("offline account added + active", pg.locator(".acct.sel:has-text('Steve_01')").count()==1)
-        pg.click('[data-act="acct-ms"]'); pg.wait_for_timeout(200)
-        check("MS sign-in without client id explains why", pg.locator(".toast.error:has-text('client ID')").count()>=1)
+        check("MS sign-in is one button", pg.locator('[data-act="ms-login"]').count()==1)
         pg.click('[data-act="close-modal"]')
         # create fabric instance
         pg.click('.rail-btn[data-act="create"]'); pg.wait_for_timeout(400)
@@ -47,8 +46,9 @@ try:
         # modpack tab creates instance
         pg.click('[data-act="browse-kind"][data-k="modpack"]'); pg.wait_for_timeout(500)
         pg.fill("#q",""); pg.wait_for_timeout(600)
-        pg.click('[data-act="install"] >> nth=0'); pg.wait_for_timeout(500)
-        check("modpack install creates + opens instance", pg.locator("h1:has-text('Fabulously Optimized')").count()==1)
+        pg.click('[data-act="open-versions"] >> nth=0'); pg.wait_for_timeout(600)
+        pg.click('[data-act="ver-install"] >> nth=0'); pg.wait_for_timeout(600)
+        check("modpack install creates + opens instance", pg.locator("h1:has-text('Pack v5')").count()==1)
         # play
         pg.click('.inst-head .js-play'); pg.wait_for_timeout(200)
         check("progress card shown while preparing", not pg.locator("#progress").is_hidden())

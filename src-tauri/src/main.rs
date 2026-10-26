@@ -11,7 +11,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::{BufRead, BufReader};
 use std::process::Command;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 struct AppState {
@@ -19,6 +20,8 @@ struct AppState {
     settings: Mutex<Settings>,
     /// instance id -> process id
     running: Mutex<HashMap<String, u32>>,
+    /// Set to abort a Microsoft sign-in that is waiting for the browser.
+    ms_cancel: Arc<AtomicBool>,
 }
 
 type Res<T> = Result<T, String>;
@@ -193,21 +196,25 @@ fn open_instance_folder(state: State<AppState>, id: String) -> Res<()> {
     Ok(())
 }
 
+fn open_external(url: &str) {
+    #[cfg(windows)]
+    {
+        // rundll32 hands the URL straight to the default browser; no cmd.exe quoting rules.
+        let mut cmd = Command::new("rundll32");
+        cmd.args(["url.dll,FileProtocolHandler", url]);
+        spiderflayer_core::util::hide_window(&mut cmd);
+        let _ = cmd.spawn();
+    }
+    #[cfg(not(windows))]
+    open_path(url);
+}
+
 #[tauri::command(async)]
 fn open_url(url: String) -> Res<()> {
     if !(url.starts_with("https://") || url.starts_with("http://")) {
         return Err("only web links can be opened".into());
     }
-    #[cfg(windows)]
-    {
-        // `explorer <url>` is unreliable for URLs; `cmd /c start` handles them.
-        let mut cmd = Command::new("cmd");
-        cmd.args(["/C", "start", "", &url.replace('&', "^&")]);
-        spiderflayer_core::util::hide_window(&mut cmd);
-        let _ = cmd.spawn();
-    }
-    #[cfg(not(windows))]
-    open_path(&url);
+    open_external(&url);
     Ok(())
 }
 
@@ -234,20 +241,62 @@ fn remove_account(state: State<AppState>, id: String) -> Res<Value> {
 }
 
 #[tauri::command(async)]
-fn ms_begin(state: State<AppState>) -> Res<Value> {
+fn ms_configured(state: State<AppState>) -> Res<bool> {
     let id = state.settings.lock().unwrap().ms_client_id.clone();
-    err(auth::ms_begin(&id))
+    Ok(!auth::client_id(&id).is_empty())
 }
 
 #[tauri::command(async)]
-fn ms_finish(
-    state: State<AppState>,
-    device_code: String,
-    interval: u64,
-    expires_in: u64,
-) -> Res<Value> {
+fn ms_cancel(state: State<AppState>) -> Res<()> {
+    state.ms_cancel.store(true, Ordering::Relaxed);
+    Ok(())
+}
+
+fn open_login_window(app: &AppHandle, url: &str, cancel: Arc<AtomicBool>) -> Result<(), String> {
+    if let Some(old) = app.get_webview_window("msauth") {
+        let _ = old.close();
+    }
+    let parsed: tauri::Url = url.parse().map_err(|e| format!("bad sign-in url: {e}"))?;
+    let win = tauri::WebviewWindowBuilder::new(app, "msauth", tauri::WebviewUrl::External(parsed))
+        .title("Sign in to Microsoft")
+        .inner_size(520.0, 720.0)
+        .center()
+        .build()
+        .map_err(|e| e.to_string())?;
+    // Closing the login window by hand abandons the sign-in.
+    win.on_window_event(move |ev| {
+        if let tauri::WindowEvent::Destroyed = ev {
+            cancel.store(true, Ordering::Relaxed);
+        }
+    });
+    Ok(())
+}
+
+/// One-click Microsoft sign-in: open Microsoft's page, wait for the redirect, done.
+/// `in_app` shows the page in a launcher window instead of the default browser.
+#[tauri::command(async)]
+fn ms_login(app: AppHandle, state: State<AppState>, in_app: bool) -> Res<Value> {
     let id = state.settings.lock().unwrap().ms_client_id.clone();
-    err(auth::ms_finish(&state.paths, &id, &device_code, interval, expires_in))?;
+    let client_id = auth::client_id(&id);
+    state.ms_cancel.store(false, Ordering::Relaxed);
+    let (url, pending) = err(auth::ms_prepare(&client_id))?;
+    if in_app {
+        open_login_window(&app, &url, state.ms_cancel.clone())?;
+    } else {
+        open_external(&url);
+    }
+    let result = auth::ms_complete(&state.paths, pending, &state.ms_cancel, 300);
+    // Closing the window fires its Destroyed event; make sure that cannot cancel the next try.
+    if let Some(w) = app.get_webview_window("msauth") {
+        let _ = w.close();
+    }
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    state.ms_cancel.store(false, Ordering::Relaxed);
+    err(result)?;
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
     Ok(auth::public(&auth::load(&state.paths)))
 }
 
@@ -288,6 +337,63 @@ fn install_content(
         &inst.mc_version,
         &inst.loader,
         &game_dir,
+    ))
+}
+
+#[tauri::command(async)]
+fn project_details(state: State<AppState>, source: String, id: String) -> Res<Value> {
+    let key = state.settings.lock().unwrap().curseforge_key.clone();
+    err(mods::project_details(&source, &key, &id))
+}
+
+#[tauri::command(async)]
+fn project_versions(
+    state: State<AppState>,
+    source: String,
+    project: String,
+    kind: String,
+    mc: String,
+    loader: String,
+) -> Res<Value> {
+    let key = state.settings.lock().unwrap().curseforge_key.clone();
+    err(mods::versions(&source, &key, &project, &kind, &mc, &loader))
+}
+
+#[tauri::command(async)]
+fn install_version_content(
+    state: State<AppState>,
+    source: String,
+    project: String,
+    version_id: String,
+    kind: String,
+    instance_id: String,
+) -> Res<Vec<String>> {
+    let key = state.settings.lock().unwrap().curseforge_key.clone();
+    let inst = err(instance::get(&state.paths, &instance_id))?;
+    let game_dir = err(state.paths.game_dir(&inst.id))?;
+    err(mods::install_version(
+        &source,
+        &key,
+        &project,
+        &version_id,
+        &kind,
+        &inst.mc_version,
+        &inst.loader,
+        &game_dir,
+    ))
+}
+
+#[tauri::command(async)]
+fn install_modpack_version(
+    app: AppHandle,
+    state: State<AppState>,
+    version_id: String,
+) -> Res<Instance> {
+    let rep = emit_progress(&app);
+    err(modpack::install_from_modrinth_version(
+        &state.paths,
+        &version_id,
+        &rep,
     ))
 }
 
@@ -430,6 +536,7 @@ fn main() {
             paths,
             settings: Mutex::new(settings),
             running: Mutex::new(HashMap::new()),
+            ms_cancel: Arc::new(AtomicBool::new(false)),
         })
         .invoke_handler(tauri::generate_handler![
             get_settings,
@@ -452,8 +559,13 @@ fn main() {
             add_offline,
             select_account,
             remove_account,
-            ms_begin,
-            ms_finish,
+            ms_configured,
+            ms_login,
+            ms_cancel,
+            project_details,
+            project_versions,
+            install_version_content,
+            install_modpack_version,
             search,
             install_content,
             install_modpack,

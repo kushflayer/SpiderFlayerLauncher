@@ -14,6 +14,14 @@
   const safeUrl = (u) => (typeof u === 'string' && /^https:\/\//.test(u) ? u : '');
   const fileB64 = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(f); });
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const errText = (e) => (typeof e === 'string' ? e : (e && e.message) || String(e));
+  const fmtDate = (d) => { try { return new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); } catch (e) { return ''; } };
+  const mcKey = (v) => { const m = /^(\d+)\.(\d+)(?:\.(\d+))?$/.exec(v); return m ? [+m[1], +m[2], +(m[3] || 0)] : null; };
+  // Release versions newest first, then everything else in the order given.
+  const sortMc = (list) => {
+    const rel = list.filter((v) => mcKey(v)).sort((a, b) => { const x = mcKey(a), y = mcKey(b); return y[0] - x[0] || y[1] - x[1] || y[2] - x[2]; });
+    return rel.concat(list.filter((v) => !mcKey(v)));
+  };
 
   // ---------- icons (Lucide-style strokes, inline so nothing is downloaded) ----------
   const ICON = {
@@ -39,6 +47,10 @@
     upload: '<path d="M12 15.5v-12M7 8.5l5-5 5 5M4.5 20h15"/>',
     image: '<rect x="3.5" y="4.5" width="17" height="15" rx="4"/><circle cx="9" cy="10" r="1.6"/><path d="m4 17 5-4.5 4 3.5 3-2.5 4 3.5"/>',
     reset: '<path d="M4.5 12a7.5 7.5 0 1 0 2.4-5.5M4.5 4.5v4h4"/>',
+    heart: '<path d="M12 20s-7.5-4.6-9-9.6C2 6.9 4.3 4.5 7 4.5c1.9 0 3.4 1 5 3 1.6-2 3.1-3 5-3 2.700 0 5 2.400 4 5.900-1.500 5-9 9.600-9 9.600z"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.500 2"/>',
+    ext: '<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
+    right: '<path d="m9.500 5.500 6.500 6.500-6.500 6.500"/>',
   };
   const ic = (name, size = 20) => `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[name] || ''}</svg>`;
 
@@ -72,6 +84,9 @@
     bgUrl: '',
     browse: { kind: 'mod', query: '', source: 'modrinth', mc: '', loader: '', sort: 'relevance', target: '', offset: 0, hits: [], total: 0, loading: false, error: '', seq: 0 },
     content: { kind: 'mods', files: [] },
+    proj: null,
+    lb: null,
+    msReady: false,
   };
 
   // ---------- helpers ----------
@@ -109,7 +124,15 @@
     $('#modal-root').innerHTML = '';
     if (cb) cb();
   }
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+  document.addEventListener('keydown', (e) => {
+    if (S.lb) {
+      if (e.key === 'Escape') { closeLightbox(); return; }
+      if (e.key === 'ArrowLeft') lbStep(-1);
+      if (e.key === 'ArrowRight') lbStep(1);
+      return;
+    }
+    if (e.key === 'Escape') closeModal();
+  });
 
   // ---------- theme & background ----------
   function applyTheme() {
@@ -169,7 +192,7 @@
     $('#rail').innerHTML = `
       <button class="logo" data-act="nav" data-to="home" aria-label="Spiderflayer Launcher" title="Spiderflayer Launcher"><img src="logo.svg" alt=""></button>
       ${nav('home', 'home', 'Home', v === 'home')}
-      ${nav('browse', 'compass', 'Discover content', v === 'browse')}
+      ${nav('browse', 'compass', 'Discover content', v === 'browse' || v === 'project')}
       ${nav('library', 'box', 'Library', v === 'library' || v === 'instance')}
       <button class="rail-btn" data-act="create" aria-label="New instance" title="New instance">${ic('plus', 22)}</button>
       <div class="rail-space"></div>
@@ -188,6 +211,9 @@
       const i = inst(v.id);
       return `<a data-act="nav" data-to="library" style="cursor:pointer;color:var(--muted)">Library</a><span class="sep">›</span>${esc(i ? i.name : '')}`;
     }
+    if (v.name === 'project') {
+      return `<a data-act="nav" data-to="browse" style="cursor:pointer;color:var(--muted)">Discover content</a><span class="sep">›</span>${esc(S.proj && S.proj.data ? S.proj.data.title : v.title || '')}`;
+    }
     return names[v.name] || '';
   }
 
@@ -197,7 +223,7 @@
     $('#back').disabled = S.hist.length === 0;
     const view = $('#view');
     view.scrollTop = 0;
-    const r = { home: renderHome, browse: renderBrowse, library: renderLibrary, instance: renderInstance, settings: renderSettings }[S.view.name];
+    const r = { home: renderHome, browse: renderBrowse, library: renderLibrary, instance: renderInstance, settings: renderSettings, project: renderProject }[S.view.name];
     (r || renderHome)(view);
   }
 
@@ -261,7 +287,7 @@
   }
 
   function projCard(h) {
-    return `<div class="card proj-card" data-act="open-url" data-url="${esc(h.source === 'curseforge' ? '' : 'https://modrinth.com/project/' + h.id)}" tabindex="0" role="button">
+    return `<div class="card proj-card" data-act="open-project" data-source="${esc(h.source)}" data-pid="${esc(h.id)}" data-kind="${esc(h.kind || '')}" data-title="${esc(h.title)}" data-icon="${esc(h.icon || '')}" tabindex="0" role="button">
       ${projPic(h.icon, h.title)}
       <div class="meta"><b>${esc(h.title)}</b><span>by ${esc(h.author || 'unknown')} · ${fmt(h.downloads)} downloads</span></div>
       <div class="desc">${esc(h.description)}</div>
@@ -323,18 +349,7 @@
       </div>
       ${loaders.length > 2 ? `<div class="chips" style="margin:0 4px 14px">${loaders.map((l) => `<button class="chip ${filter === l ? 'active' : ''}" data-act="lib-filter" data-f="${l}">${l === 'all' ? 'All' : esc(LOADER[l] || l)}</button>`).join('')}</div>` : ''}
       <div class="grid">${list.map(instCard).join('')}<div class="card add" data-act="create" tabindex="0" role="button">${ic('plus', 20)} New instance</div></div>`;
-    $('#mrpack-file').addEventListener('change', async (e) => {
-      const f = e.target.files[0];
-      if (!f) return;
-      try {
-        const data = await fileB64(f);
-        const made = await invoke('import_mrpack', { data });
-        await refreshInstances();
-        hideProgress();
-        toast(`Imported ${made.name}`);
-        go('instance', { id: made.id });
-      } catch (err) { hideProgress(); fail(err); }
-    });
+    $('#mrpack-file').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) importPack(f); });
   }
 
   // ---------- INSTANCE ----------
@@ -474,16 +489,18 @@
     if (B.error) { el.innerHTML = `<div class="panel empty"><div class="big">Couldn't load results</div><div class="selectable">${esc(B.error)}</div></div>`; return; }
     if (B.loading && !B.hits.length) { el.innerHTML = `<div class="panel empty">Searching…</div>`; return; }
     if (!B.hits.length) { el.innerHTML = `<div class="panel empty"><div class="big">Nothing found</div><div>Try a different search or loosen the filters.</div></div>`; return; }
-    const verb = B.kind === 'modpack' ? 'Create instance' : 'Install';
+    const verb = 'Install';
     el.innerHTML = B.hits.map((h, n) => `
-      <div class="proj">
+      <div class="proj" data-act="open-project" data-n="${n}" tabindex="0" role="link" style="cursor:pointer">
         ${projPic(h.icon, h.title)}
         <div class="meta">
           <div><span class="title">${esc(h.title)}</span><span class="by">by ${esc(h.author || 'unknown')}</span></div>
           <div class="desc">${esc(h.description)}</div>
           <div class="stat"><span>${ic('download', 13)}</span><span>${fmt(h.downloads)} downloads</span><span class="badge ${h.source === 'curseforge' ? 'red' : ''}">${h.source === 'curseforge' ? 'CurseForge' : 'Modrinth'}</span></div>
         </div>
-        <button class="btn primary" data-act="install" data-n="${n}">${ic('download', 16)} ${verb}</button>
+        ${B.kind === 'modpack'
+          ? `<button class="btn primary" data-act="open-versions" data-n="${n}">${ic('download', 16)} Choose version</button>`
+          : `<button class="btn primary" data-act="install" data-n="${n}">${ic('download', 16)} ${verb}</button>`}
       </div>`).join('') +
       (B.hits.length < B.total ? `<button class="btn" data-act="more" ${B.loading ? 'disabled' : ''}>${B.loading ? 'Loading…' : 'Load more'}</button>` : '');
   }
@@ -501,11 +518,12 @@
 
   async function installProject(h, btn) {
     const B = S.browse;
+    const kind = h.kind || B.kind;
     const orig = btn.innerHTML;
     const busy = (t) => { btn.disabled = true; btn.innerHTML = t; };
     const done = () => { btn.disabled = false; btn.innerHTML = orig; };
     try {
-      if (B.kind === 'modpack') {
+      if (kind === 'modpack') {
         if (h.source !== 'modrinth') { toast('CurseForge modpacks are not supported yet. Pick the Modrinth version of the pack.', 'error'); return; }
         busy('Installing…');
         const made = await invoke('install_modpack', { project: h.id });
@@ -518,10 +536,240 @@
       let id = B.target;
       if (!id) { id = await pickInstance(`Install ${h.title}`); if (!id) return; }
       busy('Installing…');
-      const files = await invoke('install_content', { source: h.source, project: h.id, kind: B.kind, instanceId: id });
+      const files = await invoke('install_content', { source: h.source, project: h.id, kind, instanceId: id });
       toast(`${h.title} installed${files.length > 1 ? ` with ${files.length - 1} dependenc${files.length === 2 ? 'y' : 'ies'}` : ''}.`);
     } catch (e) { hideProgress(); fail(e); } finally { done(); }
   }
+
+
+  // ---------- PROJECT PAGE ----------
+  function openProject(h, tab) {
+    S.proj = null; // always start fresh so the instance you came from sets the filters
+    go('project', { source: h.source, id: h.id, kind: h.kind || S.browse.kind, title: h.title, icon: h.icon, tab: tab || 'description' });
+  }
+
+  function renderProject(view) {
+    const v = S.view;
+    const key = `${v.source}:${v.id}`;
+    if (!S.proj || S.proj.key !== key) {
+      const t = inst(S.browse.target);
+      const useTarget = t && v.kind !== 'modpack';
+      S.proj = {
+        key, data: null, error: '', versions: null, vError: '', vLoading: false, bodyHtml: null,
+        vf: { mc: useTarget ? t.mc_version : '', loader: useTarget && t.loader !== 'vanilla' ? t.loader : '', type: 'all', show: 25 },
+        target: useTarget ? t.id : '',
+      };
+      loadProject(S.proj, v.source, v.id);
+    }
+    if (v.tab === 'versions' && S.proj.versions === null && !S.proj.vLoading) loadVersions(S.proj);
+    paintProject(true);
+  }
+
+  async function loadProject(P, source, id) {
+    try { P.data = await invoke('project_details', { source, id }); } catch (e) { P.error = errText(e); }
+    if (S.proj === P && S.view.name === 'project') {
+      $('#crumb').innerHTML = crumb();
+      paintProject();
+    }
+  }
+
+  async function loadVersions(P) {
+    P.vLoading = true; P.vError = ''; P.versions = null;
+    if (S.proj === P) paintProject();
+    const v = S.view;
+    try {
+      const list = await invoke('project_versions', { source: v.source, project: v.id, kind: v.kind, mc: P.vf.mc, loader: P.vf.loader });
+      if (S.proj !== P) return;
+      P.versions = list.map((x, i) => ({ ...x, _i: i }));
+    } catch (e) { if (S.proj !== P) return; P.vError = errText(e); P.versions = []; }
+    P.vLoading = false;
+    if (S.view.name === 'project') paintProject();
+  }
+
+  function versionsHtml(P, d, v) {
+    const f = P.vf;
+    const mcs = sortMc(d.game_versions || []);
+    const loaders = d.loaders || [];
+    const sel = (id, label, opts, cur) => `<div class="field"><label for="${id}">${label}</label><select id="${id}" class="input" data-vf="${id.slice(3)}">${opts}</select></div>`;
+    const opt = (val, text, cur) => `<option value="${esc(val)}" ${cur === val ? 'selected' : ''}>${esc(text)}</option>`;
+    const t = inst(P.target);
+    const note = (f.mc || f.loader) && t
+      ? `<div class="note">Showing versions that fit <b>${esc(t.name)}</b> (${esc(instLabel(t))}). <button class="btn sm ghost" data-act="ver-all">Show all versions</button></div>` : '';
+    let body;
+    if (P.vLoading || P.versions === null) body = '<div class="panel empty">Loading versions…</div>';
+    else if (P.vError) body = `<div class="panel empty"><div class="big">Couldn't load versions</div><div class="selectable">${esc(P.vError)}</div></div>`;
+    else {
+      const list = P.versions.filter((x) => f.type === 'all' || x.kind === f.type);
+      if (!list.length) body = '<div class="panel empty"><div class="big">No versions match</div><div>Try another game version or loader.</div></div>';
+      else {
+        const verb = v.kind === 'modpack' ? 'Create instance' : 'Install';
+        body = list.slice(0, f.show).map((x) => {
+          const gv = sortMc(x.game_versions || []);
+          return `<div class="ver">
+            <div class="ver-top">
+              <span class="badge vt-${esc(x.kind)}">${esc(x.kind)}</span>
+              <div class="grow" style="min-width:0"><b class="selectable">${esc(x.name || x.number)}</b> <span class="faint selectable">${esc(x.number && x.number !== x.name ? x.number : '')}</span>
+                <div class="ver-meta">${gv.slice(0, 5).map((g) => `<span class="mini">${esc(g)}</span>`).join('')}${gv.length > 5 ? `<span class="faint">+${gv.length - 5}</span>` : ''}${(x.loaders || []).map((l) => `<span class="mini red">${esc(LOADER[l] || l)}</span>`).join('')}
+                  <span class="faint">${ic('download', 12)} ${fmt(x.downloads)}</span><span class="faint">${esc(fmtDate(x.published))}</span></div></div>
+              <button class="btn primary sm" data-act="ver-install" data-n="${x._i}">${ic('download', 15)} ${verb}</button>
+            </div>
+            ${x.changelog ? `<details class="ver-log"><summary>Changelog</summary><div class="md selectable">${SFMD.render(x.changelog, 'markdown')}</div></details>` : ''}
+          </div>`;
+        }).join('') + (list.length > f.show ? `<button class="btn" data-act="ver-more">Show more (${list.length - f.show})</button>` : '');
+      }
+    }
+    return `<div class="panel">
+      <div class="set-grid" style="grid-template-columns:repeat(3,1fr)">
+        ${sel('vf-mc', 'Game version', opt('', 'All versions', f.mc) + mcs.map((g) => opt(g, g, f.mc)).join(''))}
+        ${sel('vf-loader', 'Loader', opt('', 'All loaders', f.loader) + loaders.map((l) => opt(l, LOADER[l] || l, f.loader)).join(''))}
+        ${sel('vf-type', 'Release type', ['all', 'release', 'beta', 'alpha'].map((x) => opt(x, x === 'all' ? 'All types' : x[0].toUpperCase() + x.slice(1), f.type)).join(''))}
+      </div>${note}</div><div class="results" style="margin-top:12px">${body}</div>`;
+  }
+
+  function paintProject(resetScroll) {
+    if (S.view.name !== 'project') return;
+    const view = $('#view');
+    const keep = view.scrollTop;
+    const P = S.proj, v = S.view, tab = v.tab || 'description';
+    if (P.error) {
+      view.innerHTML = `<div class="panel empty"><div class="big">Couldn't load this project</div><div class="selectable">${esc(P.error)}</div><div style="margin-top:14px"><button class="btn" data-act="proj-retry">Try again</button></div></div>`;
+      return;
+    }
+    const d = P.data;
+    if (!d) {
+      view.innerHTML = `<div class="pj-head glass">${projPic(v.icon, v.title || '?', 'lg')}<div class="grow"><h1>${esc(v.title || 'Loading…')}</h1><div class="muted">Loading…</div></div></div>`;
+      return;
+    }
+    if (P.bodyHtml === null) P.bodyHtml = SFMD.render(d.body, d.body_format);
+    const kind = v.kind;
+    const cats = (d.categories || []).filter((c) => !(d.loaders || []).includes(c)).slice(0, 8);
+    const gallery = d.gallery || [];
+    const mcs = sortMc(d.game_versions || []);
+
+    let main;
+    if (tab === 'gallery') {
+      main = gallery.length
+        ? `<div class="gal">${gallery.map((g, n) => `<button class="shot" data-act="shot" data-n="${n}" aria-label="${esc(g.title || 'Screenshot ' + (n + 1))}">
+            <img src="${esc(safeUrl(g.url) || safeUrl(g.full))}" alt="" loading="lazy" referrerpolicy="no-referrer">
+            ${g.title || g.description ? `<span class="cap"><b>${esc(g.title || '')}</b>${g.description ? `<span>${esc(g.description)}</span>` : ''}</span>` : ''}</button>`).join('')}</div>`
+        : `<div class="panel empty"><div class="big">No screenshots</div><div>The author hasn't added any images.</div></div>`;
+    } else if (tab === 'versions') {
+      main = versionsHtml(P, d, v);
+    } else {
+      main = `<div class="panel md selectable">${P.bodyHtml || '<p class="muted">The author hasn\'t written a description yet.</p>'}</div>`;
+    }
+
+    view.innerHTML = `
+      <div class="pj-head glass">
+        ${projPic(d.icon || v.icon, d.title, 'lg')}
+        <div class="grow" style="min-width:0">
+          <div class="row wrap" style="gap:8px"><h1>${esc(d.title)}</h1><span class="badge red">${esc(({ modpack: 'Modpack', mod: 'Mod', resourcepack: 'Resource pack', shader: 'Shader' })[kind] || kind)}</span><span class="badge">${d.source === 'curseforge' ? 'CurseForge' : 'Modrinth'}</span></div>
+          <div class="muted" style="margin:6px 0 10px">${esc(d.summary)}</div>
+          <div class="row wrap pj-stats">
+            <span>${ic('download', 15)} ${fmt(d.downloads)} downloads</span>
+            ${d.followers ? `<span>${ic('heart', 15)} ${fmt(d.followers)} ${d.source === 'curseforge' ? 'likes' : 'followers'}</span>` : ''}
+            ${d.updated ? `<span>${ic('clock', 15)} Updated ${esc(fmtDate(d.updated))}</span>` : ''}
+          </div>
+          ${cats.length ? `<div class="row wrap" style="margin-top:10px;gap:6px">${cats.map((c) => `<span class="mini">${esc(c)}</span>`).join('')}</div>` : ''}
+        </div>
+        <div class="pj-actions">
+          ${kind === 'modpack'
+            ? `<button class="btn primary lg" data-act="proj-tab" data-tab="versions">${ic('download', 18)} Choose version</button>`
+            : `<button class="btn primary lg" data-act="proj-install">${ic('download', 18)} Install latest</button>
+               <button class="btn" data-act="proj-tab" data-tab="versions">Choose version…</button>`}
+          ${safeUrl(d.web_url) ? `<button class="btn ghost sm" data-act="open-url" data-url="${esc(d.web_url)}">${ic('ext', 15)} Open website</button>` : ''}
+        </div>
+      </div>
+      <div class="tabs" style="margin:14px 0">
+        <button class="tab ${tab === 'description' ? 'active' : ''}" data-act="proj-tab" data-tab="description">Description</button>
+        <button class="tab ${tab === 'gallery' ? 'active' : ''}" data-act="proj-tab" data-tab="gallery">Gallery${gallery.length ? ` <span class="badge">${gallery.length}</span>` : ''}</button>
+        <button class="tab ${tab === 'versions' ? 'active' : ''}" data-act="proj-tab" data-tab="versions">Versions</button>
+      </div>
+      <div class="pj-grid">
+        <div class="pj-main">${main}</div>
+        <aside class="pj-side">
+          <div class="panel"><div class="label">Compatibility</div>
+            ${mcs.length ? `<div class="chips-sm">${mcs.slice(0, 14).map((g) => `<span class="mini">${esc(g)}</span>`).join('')}${mcs.length > 14 ? `<span class="faint">+${mcs.length - 14} more</span>` : ''}</div>` : '<div class="faint">Not listed</div>'}
+            ${(d.loaders || []).length ? `<div class="chips-sm" style="margin-top:8px">${d.loaders.map((l) => `<span class="mini red">${esc(LOADER[l] || l)}</span>`).join('')}</div>` : ''}</div>
+          ${(d.team || []).length ? `<div class="panel"><div class="label">Creators</div>${d.team.map((m) => `<div class="creator">${safeUrl(m.avatar) ? `<img src="${esc(m.avatar)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : pic(m.name || '?', 'sm')}<div><b>${esc(m.name)}</b><div class="faint">${esc(m.role || '')}</div></div></div>`).join('')}</div>` : ''}
+          ${(d.links || []).filter((l) => safeUrl(l.url)).length ? `<div class="panel"><div class="label">Links</div>${d.links.filter((l) => safeUrl(l.url)).map((l) => `<button class="linkrow" data-act="open-url" data-url="${esc(l.url)}">${ic('ext', 14)} ${esc(l.label)}</button>`).join('')}</div>` : ''}
+          <div class="panel"><div class="label">Details</div>
+            ${d.license ? `<div class="kv"><span>Licence</span><b>${esc(d.license)}</b></div>` : ''}
+            ${d.published ? `<div class="kv"><span>Published</span><b>${esc(fmtDate(d.published))}</b></div>` : ''}
+            ${d.updated ? `<div class="kv"><span>Updated</span><b>${esc(fmtDate(d.updated))}</b></div>` : ''}</div>
+        </aside>
+      </div>`;
+    view.scrollTop = resetScroll ? 0 : keep;
+  }
+
+  async function installVersion(n, btn) {
+    const P = S.proj, v = S.view, d = P.data;
+    const ver = P.versions.find((x) => x._i === n);
+    if (!ver) return;
+    const orig = btn.innerHTML;
+    const busy = () => { btn.disabled = true; btn.innerHTML = 'Installing…'; };
+    const done = () => { btn.disabled = false; btn.innerHTML = orig; };
+    try {
+      if (v.kind === 'modpack') {
+        if (v.source !== 'modrinth') { toast('CurseForge modpacks are not supported yet. Pick the Modrinth version of the pack.', 'error'); return; }
+        busy();
+        const made = await invoke('install_modpack_version', { versionId: ver.id });
+        await refreshInstances();
+        hideProgress();
+        toast(`Created ${made.name} from ${ver.name || ver.number}`);
+        go('instance', { id: made.id });
+        return;
+      }
+      let id = P.target;
+      if (!id) { id = await pickInstance(`Install ${d.title} ${ver.number || ''}`); if (!id) return; }
+      const i = inst(id);
+      const mcOk = !(ver.game_versions || []).length || ver.game_versions.includes(i.mc_version);
+      const lds = ver.loaders || [];
+      const loaderOk = v.kind !== 'mod' || !lds.length || i.loader === 'vanilla' || lds.includes(i.loader) || (i.loader === 'quilt' && lds.includes('fabric'));
+      if (!mcOk || !loaderOk) {
+        const ok = await confirmBox('This version may not work',
+          `${ver.name || ver.number} is for ${(ver.game_versions || []).slice(0, 4).join(', ') || 'other versions'}${lds.length ? ' (' + lds.map((l) => LOADER[l] || l).join(', ') + ')' : ''}, but "${i.name}" is ${instLabel(i)}.`, 'Install anyway');
+        if (!ok) return;
+      }
+      busy();
+      const files = await invoke('install_version_content', { source: v.source, project: v.id, versionId: ver.id, kind: v.kind, instanceId: id });
+      toast(`${d.title} ${ver.number || ''} installed into ${i.name}${files.length > 1 ? ` with ${files.length - 1} dependenc${files.length === 2 ? 'y' : 'ies'}` : ''}.`);
+    } catch (e) { hideProgress(); fail(e); } finally { done(); }
+  }
+
+  function confirmBox(title, msg, okLabel) {
+    return new Promise((resolve) => {
+      let yes = false;
+      const m = openModal(`<h2>${esc(title)}</h2><div class="muted" style="margin-top:8px">${esc(msg)}</div>
+        <div class="foot"><button class="btn" data-act="close-modal">Cancel</button><button class="btn primary" id="cf-ok">${esc(okLabel)}</button></div>`,
+        { onClose: () => resolve(yes), noFocus: true });
+      $('#cf-ok', m).addEventListener('click', () => { yes = true; closeModal(); });
+    });
+  }
+
+  // ---------- lightbox ----------
+  function paintLightbox() {
+    let el = $('#lightbox');
+    if (!S.lb) { if (el) el.remove(); return; }
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'lightbox';
+      document.body.appendChild(el);
+      el.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-lb]');
+        if (b) lbStep(+b.dataset.lb);
+        else if (e.target === el || e.target.closest('[data-lbclose]')) closeLightbox();
+      });
+    }
+    const { n, list } = S.lb;
+    const g = list[n];
+    el.innerHTML = `<button class="icon-btn lb-x" data-lbclose="1" aria-label="Close">${ic('x', 22)}</button>
+      ${list.length > 1 ? `<button class="icon-btn lb-nav prev" data-lb="-1" aria-label="Previous">${ic('left', 26)}</button><button class="icon-btn lb-nav next" data-lb="1" aria-label="Next">${ic('right', 26)}</button>` : ''}
+      <figure><img src="${esc(safeUrl(g.full) || safeUrl(g.url))}" alt="" referrerpolicy="no-referrer">
+        <figcaption>${g.title ? `<b>${esc(g.title)}</b>` : ''}${g.description ? `<span>${esc(g.description)}</span>` : ''}<em>${n + 1} / ${list.length}</em></figcaption></figure>`;
+  }
+  function lbStep(dir) { if (!S.lb) return; const t = S.lb.list.length; S.lb.n = (S.lb.n + dir + t) % t; paintLightbox(); }
+  function closeLightbox() { S.lb = null; paintLightbox(); }
 
   // ---------- SETTINGS ----------
   function renderSettings(view) {
@@ -542,11 +790,16 @@
           <div class="field"><label>Background blur <span id="v-bg_blur" style="text-transform:none;letter-spacing:0">${s.bg_blur}px</span></label><input type="range" min="0" max="30" value="${s.bg_blur}" data-slide="bg_blur"></div>
           <div class="field"><label>Background dimming <span id="v-bg_dim" style="text-transform:none;letter-spacing:0">${s.bg_dim}%</span></label><input type="range" min="0" max="80" value="${s.bg_dim}" data-slide="bg_dim"></div>
         </div>
-        <div class="row wrap" style="margin-top:18px">
-          <button class="btn" data-act="pick-bg">${ic('image', 18)} Choose background…</button>
-          <button class="btn ghost" data-act="reset-bg" ${s.background ? '' : 'disabled'}>${ic('reset', 18)} Use default background</button>
-          <input type="file" id="bg-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
-          <span class="hint">${s.background ? 'Using your own picture.' : 'Using the built-in lavender fields.'}</span>
+        <div class="bg-row">
+          <div class="bg-preview" style="background-image:url('${esc(S.bgUrl)}')"></div>
+          <div class="grow">
+            <b>${s.background ? 'Your own background' : 'Default background'}</b>
+            <div class="muted" style="margin:2px 0 12px">${s.background ? 'Using the picture you chose.' : 'The built-in lavender fields. Use any image you like instead.'}<br>Tip: you can also drop an image anywhere on the window, or use the picture button in the top bar.</div>
+            <div class="row wrap">
+              <button class="btn primary" data-act="pick-bg">${ic('image', 18)} Choose picture…</button>
+              <button class="btn ghost" data-act="reset-bg" ${s.background ? '' : 'disabled'}>${ic('reset', 18)} Use default</button>
+            </div>
+          </div>
         </div>
       </div>
       <div class="panel">
@@ -568,8 +821,8 @@
         <div class="set-grid">
           <div class="field"><label for="s-cf">CurseForge API key</label><input id="s-cf" class="input" type="password" data-text="curseforge_key" value="${esc(s.curseforge_key)}" placeholder="Needed to browse CurseForge" autocomplete="off">
             <span class="hint">Free key from console.curseforge.com</span></div>
-          <div class="field"><label for="s-ms">Microsoft app client ID</label><input id="s-ms" class="input" data-text="ms_client_id" value="${esc(s.ms_client_id)}" placeholder="Needed for premium sign-in" autocomplete="off">
-            <span class="hint">Needs an Azure app approved by Mojang (see README). Offline accounts need nothing.</span></div>
+          <div class="field"><label for="s-ms">Microsoft app ID (advanced)</label><input id="s-ms" class="input" data-text="ms_client_id" value="${esc(s.ms_client_id)}" placeholder="Leave empty to use the built-in one" autocomplete="off">
+            <span class="hint">Only needed if this build has no app ID built in (see README).</span></div>
         </div>
       </div>
       <div class="panel row"><img src="logo.svg" width="46" height="46" alt=""><div class="grow"><b>Spiderflayer Launcher</b><div class="muted">v0.1.0 · lightweight Minecraft launcher</div></div></div>`;
@@ -584,17 +837,33 @@
     $$('[data-text]', view).forEach((el) => el.addEventListener('input', () => { s[el.dataset.text] = el.value; saveSettings(); }));
     $$('[data-set]', view).forEach((el) => el.addEventListener('change', () => { s[el.dataset.set] = el.checked; saveSettings(); }));
     $('#accent-custom').addEventListener('input', (e) => { s.accent = e.target.value; applyTheme(); saveSettings(); });
-    $('#bg-file').addEventListener('change', async (e) => {
-      const f = e.target.files[0];
-      if (!f) return;
-      try {
-        const ext = (f.name.split('.').pop() || '').toLowerCase();
-        await invoke('set_background', { ext, data: await fileB64(f) });
-        S.settings = await invoke('get_settings');
-        await loadBackground();
-        renderSettings(view);
-      } catch (err) { fail(err); }
-    });
+  }
+
+  // ---------- background picking ----------
+  async function setBackgroundFile(f) {
+    if (!f) return;
+    if (!/^image\//.test(f.type)) { toast('Pick an image file (PNG, JPG, WebP or GIF).', 'error'); return; }
+    if (f.size > 40 * 1024 * 1024) { toast('That image is too large (40 MB max).', 'error'); return; }
+    let ext = (f.name.split('.').pop() || '').toLowerCase();
+    if (!['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext)) ext = ({ 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' })[f.type] || 'jpg';
+    try {
+      await invoke('set_background', { ext, data: await fileB64(f) });
+      S.settings = await invoke('get_settings');
+      await loadBackground();
+      toast('Background updated.');
+      if (S.view.name === 'settings') render();
+    } catch (e) { fail(e); }
+  }
+
+  async function importPack(f) {
+    try {
+      const data = await fileB64(f);
+      const made = await invoke('import_mrpack', { data });
+      await refreshInstances();
+      hideProgress();
+      toast(`Imported ${made.name}`);
+      go('instance', { id: made.id });
+    } catch (err) { hideProgress(); fail(err); }
   }
 
   // ---------- accounts ----------
@@ -610,28 +879,34 @@
             <button class="icon-btn" data-act="acct-remove" data-id="${esc(a.id)}" aria-label="Remove account">${ic('trash', 17)}</button>
           </div>`).join('') : '<div class="muted">No accounts yet.</div>'}
         ${extra || `
+        ${S.msReady
+          ? `<div class="field"><button class="btn primary lg" data-act="ms-login">${ic('link', 18)} Sign in with Microsoft</button>
+              <span class="hint">Opens Microsoft's own sign-in page in your browser. Approve it and you're logged in. <button class="linklike" data-act="ms-login-app">Use a window inside the launcher instead</button></span></div>`
+          : `<div class="note">Premium (Microsoft) sign-in isn't switched on in this build yet. It needs a one-time Microsoft app ID from the launcher's developer (see the README). Offline accounts work right now. <button class="linklike" data-act="goto-settings">I have an app ID</button></div>`}
         <div class="field"><label for="off-name">Offline account</label>
-          <div class="row"><input id="off-name" class="input" placeholder="Username" maxlength="16" autocomplete="off"><button class="btn" data-act="acct-offline">Add</button></div></div>
-        <button class="btn primary" data-act="acct-ms">${ic('link', 18)} Sign in with Microsoft</button>`}
+          <div class="row"><input id="off-name" class="input" placeholder="Username" maxlength="16" autocomplete="off"><button class="btn" data-act="acct-offline">Add</button></div></div>`}
       </div>
       <div class="foot"><button class="btn" data-act="close-modal">Done</button></div>`;
   }
-  function openAccounts() { openModal(accountsHtml(), { noFocus: !S.acct.accounts.length ? false : true }); }
+  async function openAccounts() {
+    try { S.msReady = await invoke('ms_configured'); } catch (e) { S.msReady = false; }
+    openModal(accountsHtml(), { noFocus: !!S.acct.accounts.length });
+  }
   function refreshAccountsModal(extra) { const m = $('#modal-root .modal'); if (m) m.innerHTML = accountsHtml(extra); }
 
-  async function msSignIn() {
+  async function msLogin(inApp) {
+    refreshAccountsModal(`<div class="field"><div class="row"><span class="spinner"></span><b>Waiting for Microsoft…</b></div>
+      <span class="hint">${inApp ? 'Sign in in the window that just opened.' : 'Finish signing in in your browser, then come back here.'} This closes by itself when you're done.</span>
+      <div class="row"><button class="btn" data-act="ms-cancel">Cancel</button></div></div>`);
     try {
-      const d = await invoke('ms_begin');
-      refreshAccountsModal(`<div class="field"><label>Your sign-in code</label><div class="code-box selectable">${esc(d.user_code)}</div>
-        <span class="hint">A browser window opened at <b>${esc(d.verification_uri)}</b>. Enter the code there and approve the sign-in. This window updates by itself.</span></div>`);
-      invoke('open_url', { url: d.verification_uri }).catch(() => {});
-      S.acct = await invoke('ms_finish', { deviceCode: d.device_code, interval: d.interval || 5, expiresIn: d.expires_in || 900 });
+      S.acct = await invoke('ms_login', { inApp });
       renderRail();
-      if ($('#modal-root .modal')) refreshAccountsModal();
-      toast('Signed in with Microsoft.');
+      refreshAccountsModal();
+      toast(`Signed in as ${acctName()}.`);
+      if (S.view.name === 'home') render();
     } catch (e) {
-      if ($('#modal-root .modal')) refreshAccountsModal();
-      fail(e);
+      refreshAccountsModal();
+      if (!/cancel/i.test(errText(e))) fail(e);
     }
   }
 
@@ -735,24 +1010,50 @@
     theme: (el) => { S.settings.theme = el.dataset.t; applyTheme(); saveSettings(); render(); },
     accent: (el) => { S.settings.accent = el.dataset.c; applyTheme(); saveSettings(); render(); },
     'pick-bg': () => $('#bg-file').click(),
+    'pick-bg-top': () => $('#bg-file').click(),
     'reset-bg': async () => { try { await invoke('clear_background'); S.settings = await invoke('get_settings'); await loadBackground(); render(); } catch (e) { fail(e); } },
     'acct-select': async (el) => { try { S.acct = await invoke('select_account', { id: el.dataset.id }); refreshAccountsModal(); renderRail(); } catch (e) { fail(e); } },
     'acct-remove': async (el) => { try { S.acct = await invoke('remove_account', { id: el.dataset.id }); refreshAccountsModal(); renderRail(); } catch (e) { fail(e); } },
     'acct-offline': async () => {
       try { S.acct = await invoke('add_offline', { name: $('#off-name').value }); refreshAccountsModal(); renderRail(); if (S.view.name === 'home') render(); } catch (e) { fail(e); }
     },
-    'acct-ms': () => msSignIn(),
+    'ms-login': () => msLogin(false),
+    'ms-login-app': () => msLogin(true),
+    'ms-cancel': () => invoke('ms_cancel').catch(() => {}),
+    'goto-settings': () => { closeModal(); S.hist = []; S.view = { name: 'settings' }; render(); },
+    'open-project': (el) => {
+      if (el.dataset.n !== undefined) { openProject(S.browse.hits[+el.dataset.n]); return; }
+      openProject({ source: el.dataset.source, id: el.dataset.pid, kind: el.dataset.kind, title: el.dataset.title, icon: el.dataset.icon });
+    },
+    'open-versions': (el) => openProject(S.browse.hits[+el.dataset.n], 'versions'),
+    'proj-tab': (el) => {
+      S.view.tab = el.dataset.tab;
+      if (S.view.tab === 'versions' && S.proj.versions === null && !S.proj.vLoading) loadVersions(S.proj);
+      paintProject(true);
+    },
+    'proj-retry': () => { const v = S.view; S.proj = null; renderProject($('#view')); },
+    'proj-install': (el) => installProject({ source: S.view.source, id: S.view.id, title: S.proj.data.title, kind: S.view.kind }, el),
+    'ver-install': (el) => installVersion(+el.dataset.n, el),
+    'ver-more': () => { S.proj.vf.show += 25; paintProject(); },
+    'ver-all': () => { S.proj.vf.mc = ''; S.proj.vf.loader = ''; S.proj.target = ''; loadVersions(S.proj); },
+    shot: (el) => { S.lb = { n: +el.dataset.n, list: S.proj.data.gallery }; paintLightbox(); },
   };
 
   document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-act]');
     if (!el || el.tagName === 'INPUT') return;
+    if (el.tagName === 'A') e.preventDefault();
     const fn = A[el.dataset.act];
     if (fn) fn(el, e);
   });
   document.addEventListener('change', (e) => {
     const el = e.target;
     if (el.tagName === 'INPUT' && el.dataset.act && A[el.dataset.act]) A[el.dataset.act](el, e);
+    if (el.tagName === 'SELECT' && el.dataset.vf && S.proj) {
+      const k = el.dataset.vf;
+      S.proj.vf[k] = el.value;
+      if (k === 'mc' || k === 'loader') { S.proj.target = ''; loadVersions(S.proj); } else paintProject();
+    }
   });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && e.target.matches('.card[data-act], #off-name')) {
@@ -767,6 +1068,21 @@
     $('#wmin').innerHTML = ic('min', 18);
     $('#wmax').innerHTML = ic('max', 16);
     $('#wclose').innerHTML = ic('x', 18);
+    $('#bgbtn').innerHTML = ic('image', 19);
+    $('#bgbtn').addEventListener('click', () => $('#bg-file').click());
+    $('#bg-file').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; setBackgroundFile(f); });
+    let depth = 0;
+    const hasFiles = (e) => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+    window.addEventListener('dragenter', (e) => { if (!hasFiles(e)) return; e.preventDefault(); depth++; $('#drop').hidden = false; });
+    window.addEventListener('dragover', (e) => { if (hasFiles(e)) e.preventDefault(); });
+    window.addEventListener('dragleave', (e) => { if (!hasFiles(e)) return; depth = Math.max(0, depth - 1); if (!depth) $('#drop').hidden = true; });
+    window.addEventListener('drop', (e) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault(); depth = 0; $('#drop').hidden = true;
+      const f = e.dataTransfer.files[0];
+      if (!f) return;
+      if (/\.mrpack$/i.test(f.name)) importPack(f); else setBackgroundFile(f);
+    });
     $('#back').addEventListener('click', back);
     const win = TAURI.window && TAURI.window.getCurrentWindow ? TAURI.window.getCurrentWindow() : null;
     $('#wmin').addEventListener('click', () => win && win.minimize());
@@ -785,6 +1101,7 @@
       await Promise.all([refreshInstances(), refreshAccounts()]);
       const run = await invoke('running');
       S.running = new Set(run);
+      S.msReady = await invoke('ms_configured').catch(() => false);
     } catch (e) { fail(e); }
     render();
 

@@ -19,6 +19,7 @@
         <div id="crumb" data-tauri-drag-region></div>
         <div class="grow" data-tauri-drag-region></div>
         <div id="runstate"></div>
+        <button class="icon-btn" id="bgbtn" aria-label="Change background" title="Change background"></button>
         <div class="wc">
           <button class="icon-btn" id="wmin" aria-label="Minimize"></button>
           <button class="icon-btn" id="wmax" aria-label="Maximize"></button>
@@ -34,8 +35,11 @@
     <div class="bar"><i></i></div>
   </div>
   <div id="toasts"></div>
+  <input type="file" id="bg-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+  <div id="drop" hidden><div>Drop an image to use it as your background<br><small>or a .mrpack file to import a modpack</small></div></div>
   <div id="modal-root"></div>
 
+  <script src="md.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

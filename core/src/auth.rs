@@ -7,7 +7,13 @@ use crate::util::*;
 use anyhow::{anyhow, bail, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::time::Duration;
+use base64::Engine;
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
+use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 #[serde(default)]
@@ -132,6 +138,203 @@ fn post_json(url: &str, body: &Value) -> Result<Value> {
         Err(ureq::Error::Status(_, r)) => Ok(r.into_json::<Value>().unwrap_or_else(|_| json!({}))),
         Err(e) => Err(http_err(e)),
     }
+}
+
+/// Microsoft app (client) ID baked in at build time. Set the `SPIDERFLAYER_MS_CLIENT_ID`
+/// environment variable when building (the GitHub workflow does this from a repo variable)
+/// so players never have to enter anything. Must be an Azure app approved by Mojang.
+pub const DEFAULT_CLIENT_ID: &str = match option_env!("SPIDERFLAYER_MS_CLIENT_ID") {
+    Some(v) => v,
+    None => "",
+};
+
+/// The client ID to use: the user's own override if set, otherwise the built-in one.
+pub fn client_id(user_setting: &str) -> String {
+    let u = user_setting.trim();
+    if u.is_empty() {
+        DEFAULT_CLIENT_ID.trim().to_string()
+    } else {
+        u.to_string()
+    }
+}
+
+/// A sign-in waiting for the browser to come back to our loopback address.
+pub struct PendingLogin {
+    listener: TcpListener,
+    verifier: String,
+    state: String,
+    redirect: String,
+    client_id: String,
+}
+
+fn random_token(bytes: usize) -> Result<String> {
+    let mut buf = vec![0u8; bytes];
+    getrandom::getrandom(&mut buf).map_err(|e| anyhow!("no secure random source: {e}"))?;
+    Ok(base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(buf))
+}
+
+/// Step 1: open a loopback listener and build the Microsoft sign-in URL (PKCE).
+/// The caller opens the URL in a browser (or an in-app window) and then calls
+/// `ms_complete`.
+pub fn ms_prepare(client_id: &str) -> Result<(String, PendingLogin)> {
+    let client_id = client_id.trim();
+    if client_id.is_empty() {
+        bail!("Premium sign-in isn't set up in this build yet. Add a Microsoft app ID (see the README) or use an offline account.");
+    }
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    listener.set_nonblocking(true)?;
+    let port = listener.local_addr()?.port();
+    let redirect = format!("http://localhost:{port}");
+    let verifier = random_token(48)?;
+    let challenge = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .encode(Sha256::digest(verifier.as_bytes()));
+    let state = random_token(16)?;
+    let url = format!(
+        "{TENANT}/authorize?client_id={}&response_type=code&redirect_uri={}&scope={}&state={}&code_challenge={}&code_challenge_method=S256&prompt=select_account",
+        urlencoding::encode(client_id),
+        urlencoding::encode(&redirect),
+        urlencoding::encode(SCOPE),
+        state,
+        challenge
+    );
+    Ok((
+        url,
+        PendingLogin {
+            listener,
+            verifier,
+            state,
+            redirect,
+            client_id: client_id.to_string(),
+        },
+    ))
+}
+
+fn html_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
+fn respond(stream: &mut TcpStream, status: &str, ok: bool, message: &str) {
+    let (title, color) = if ok {
+        ("You're signed in", "#3ddc84")
+    } else {
+        ("Sign-in didn't finish", "#ff3b4a")
+    };
+    let html = format!(
+        "<!doctype html><meta charset=utf-8><title>Spiderflayer Launcher</title>\
+<body style=\"margin:0;min-height:100vh;display:grid;place-items:center;background:#000;color:#f7f1f1;font:16px system-ui,sans-serif\">\
+<div style=\"text-align:center;padding:32px;max-width:420px\">\
+<div style=\"font-size:44px;color:{color}\">&#9679;</div>\
+<h1 style=\"margin:8px 0\">{title}</h1>\
+<p style=\"color:#c9bcbe\">{}</p></div></body>",
+        html_escape(message)
+    );
+    let resp = format!(
+        "HTTP/1.1 {status}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        html.len(),
+        html
+    );
+    let _ = stream.write_all(resp.as_bytes());
+    let _ = stream.flush();
+}
+
+fn parse_query(q: &str) -> HashMap<String, String> {
+    let mut out = HashMap::new();
+    for pair in q.split('&') {
+        if let Some((k, v)) = pair.split_once('=') {
+            let v = v.replace('+', " ");
+            let decoded: Option<String> = urlencoding::decode(&v).ok().map(|c| c.into_owned());
+            out.insert(k.to_string(), decoded.unwrap_or(v));
+        }
+    }
+    out
+}
+
+/// Step 2: wait for the browser to be redirected back, then finish the Xbox/Minecraft chain.
+/// `cancel` lets the UI abort the wait; `timeout_secs` bounds it.
+pub fn ms_complete(
+    paths: &Paths,
+    pending: PendingLogin,
+    cancel: &AtomicBool,
+    timeout_secs: u64,
+) -> Result<Account> {
+    let deadline = Instant::now() + Duration::from_secs(timeout_secs);
+    let code: String = loop {
+        if cancel.load(Ordering::Relaxed) {
+            bail!("Sign-in cancelled");
+        }
+        if Instant::now() > deadline {
+            bail!("Sign-in timed out. Try again.");
+        }
+        match pending.listener.accept() {
+            Ok((mut stream, _)) => {
+                let _ = stream.set_nonblocking(false);
+                let _ = stream.set_read_timeout(Some(Duration::from_secs(3)));
+                let mut buf = [0u8; 4096];
+                let n = stream.read(&mut buf).unwrap_or(0);
+                let req = String::from_utf8_lossy(&buf[..n]).to_string();
+                let line = req.lines().next().unwrap_or("");
+                let target = line.split_whitespace().nth(1).unwrap_or("");
+                let query = target.split_once('?').map(|x| x.1).unwrap_or("");
+                let params = parse_query(query);
+                if let Some(e) = params.get("error") {
+                    let why = params
+                        .get("error_description")
+                        .cloned()
+                        .unwrap_or_else(|| e.clone());
+                    respond(&mut stream, "400 Bad Request", false, &why);
+                    bail!("Microsoft sign-in failed: {why}");
+                }
+                match params.get("code") {
+                    Some(code) => {
+                        if params.get("state") != Some(&pending.state) {
+                            respond(&mut stream, "400 Bad Request", false, "This sign-in link is not for this launcher window. Start again from Spiderflayer.");
+                            continue;
+                        }
+                        respond(
+                            &mut stream,
+                            "200 OK",
+                            true,
+                            "You can close this tab and go back to Spiderflayer Launcher.",
+                        );
+                        break code.clone();
+                    }
+                    None => {
+                        // favicon requests and the like
+                        respond(&mut stream, "404 Not Found", false, "Nothing here.");
+                    }
+                }
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                std::thread::sleep(Duration::from_millis(150));
+            }
+            Err(e) => return Err(e.into()),
+        }
+    };
+
+    let r = post_form(
+        &format!("{TENANT}/token"),
+        &[
+            ("client_id", pending.client_id.as_str()),
+            ("grant_type", "authorization_code"),
+            ("code", code.as_str()),
+            ("redirect_uri", pending.redirect.as_str()),
+            ("code_verifier", pending.verifier.as_str()),
+            ("scope", SCOPE),
+        ],
+    )?;
+    let access = match r["access_token"].as_str() {
+        Some(a) => a.to_string(),
+        None => bail!(
+            "Microsoft sign-in failed: {}",
+            r["error_description"].as_str().unwrap_or("no access token returned")
+        ),
+    };
+    let refresh = r["refresh_token"].as_str().unwrap_or("").to_string();
+    let session = mc_login(&access)?;
+    store_session(paths, &refresh, session)
 }
 
 /// Step 1: ask Microsoft for a code the user types in at microsoft.com/link.
@@ -338,6 +541,29 @@ pub fn ensure_fresh(paths: &Paths, client_id: &str) -> Result<Account> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pkce_url_has_required_parts() {
+        let (url, pending) = ms_prepare("abc-123").unwrap();
+        assert!(url.contains("client_id=abc-123"));
+        assert!(url.contains("code_challenge_method=S256"));
+        assert!(url.contains(&format!("state={}", pending.state)));
+        assert!(pending.redirect.starts_with("http://localhost:"));
+        assert!(pending.verifier.len() >= 43);
+        assert!(ms_prepare("  ").is_err());
+    }
+
+    #[test]
+    fn query_parsing_decodes() {
+        let q = parse_query("code=a%2Fb+c&state=xyz");
+        assert_eq!(q.get("code").unwrap(), "a/b c");
+        assert_eq!(q.get("state").unwrap(), "xyz");
+    }
+
+    #[test]
+    fn client_id_prefers_user_override() {
+        assert_eq!(client_id(" mine "), "mine");
+    }
 
     #[test]
     fn offline_uuid_is_stable_and_version_3() {

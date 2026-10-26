@@ -36,7 +36,11 @@ jobs:
       - name: Install Tauri CLI
         run: npm install --global @tauri-apps/cli@2
 
+      # Optional: your Microsoft app ID (repo Settings > Secrets and variables > Actions >
+      # Variables > SPIDERFLAYER_MS_CLIENT_ID). Baked in so players just click "Sign in".
       - name: Build installers
+        env:
+          SPIDERFLAYER_MS_CLIENT_ID: ${{ vars.SPIDERFLAYER_MS_CLIENT_ID }}
         run: tauri build
 
       - uses: actions/upload-artifact@v4

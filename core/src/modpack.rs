@@ -95,6 +95,24 @@ pub fn install_from_modrinth(paths: &Paths, project: &str, rep: Reporter) -> Res
     let ver = versions
         .first()
         .ok_or_else(|| anyhow!("this modpack has no versions"))?;
+    install_version_json(paths, ver, rep)
+}
+
+/// Install one specific Modrinth modpack version the user picked.
+pub fn install_from_modrinth_version(
+    paths: &Paths,
+    version_id: &str,
+    rep: Reporter,
+) -> Result<Instance> {
+    rep(Progress::msg("modpack", "Fetching modpack version"));
+    let ver: Value = get_json(&format!(
+        "https://api.modrinth.com/v2/version/{}",
+        urlencoding::encode(version_id)
+    ))?;
+    install_version_json(paths, &ver, rep)
+}
+
+fn install_version_json(paths: &Paths, ver: &Value, rep: Reporter) -> Result<Instance> {
     let files = ver["files"].as_array().cloned().unwrap_or_default();
     let file = files
         .iter()
