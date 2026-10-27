@@ -67,7 +67,7 @@
     { id: 'shaderpacks', label: 'Shaders' },
   ];
   const SORTS = [['relevance', 'Relevance'], ['downloads', 'Downloads'], ['newest', 'Newest'], ['updated', 'Recently updated']];
-  const ACCENTS = ['#ff3b4a', '#ff1f3d', '#ff5a36', '#e0115f', '#b4001b'];
+  const ACCENTS = ['#8b5cf6', '#a78bfa', '#c084fc', '#ec4899', '#ff3b4a'];
 
   // ---------- state ----------
   const S = {
@@ -190,7 +190,7 @@
       `<button class="rail-btn ${active ? 'active' : ''}" data-act="nav" data-to="${id}" aria-label="${label}" title="${label}">${ic(icon, 22)}${id === 'library' && S.running.size ? '<span class="dot"></span>' : ''}</button>`;
     const v = S.view.name;
     $('#rail').innerHTML = `
-      <button class="logo" data-act="nav" data-to="home" aria-label="Spiderflayer Launcher" title="Spiderflayer Launcher"><img src="logo.svg" alt=""></button>
+      <button class="logo" data-act="nav" data-to="home" aria-label="Spiderflayer Launcher" title="Spiderflayer Launcher"><img src="logo.png" alt=""></button>
       ${nav('home', 'home', 'Home', v === 'home')}
       ${nav('browse', 'compass', 'Discover content', v === 'browse' || v === 'project')}
       ${nav('library', 'box', 'Library', v === 'library' || v === 'instance')}
@@ -370,7 +370,7 @@
           </div>
         </div>
       </div>
-      <div class="tabs" style="margin:14px 0">
+      <div class="tabs" style="margin:18px auto">
         ${[['content', 'Content'], ['logs', 'Logs'], ['options', 'Options']].map(([id, l]) => `<button class="tab ${tab === id ? 'active' : ''}" data-act="inst-tab" data-tab="${id}">${l}</button>`).join('')}
       </div>
       <div id="tab-body"></div>`;
@@ -438,7 +438,7 @@
     const showLoader = B.kind === 'mod' || B.kind === 'modpack';
     view.innerHTML = `
       <div class="tabs">${KINDS.map((k) => `<button class="tab ${B.kind === k.id ? 'active' : ''}" data-act="browse-kind" data-k="${k.id}">${k.label}</button>`).join('')}</div>
-      <div class="row" style="margin-top:14px">
+      <div class="row center-row">
         <div class="searchbar">${ic('search', 18)}<input id="q" class="input" placeholder="Search ${KINDS.find((k) => k.id === B.kind).label.toLowerCase()}…" value="${esc(B.query)}" autocomplete="off"></div>
         <select id="f-sort" class="input" style="width:170px">${SORTS.map(([v, l]) => `<option value="${v}" ${B.sort === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
       </div>
@@ -680,7 +680,7 @@
           ${safeUrl(d.web_url) ? `<button class="btn ghost sm" data-act="open-url" data-url="${esc(d.web_url)}">${ic('ext', 15)} Open website</button>` : ''}
         </div>
       </div>
-      <div class="tabs" style="margin:14px 0">
+      <div class="tabs" style="margin:18px auto">
         <button class="tab ${tab === 'description' ? 'active' : ''}" data-act="proj-tab" data-tab="description">Description</button>
         <button class="tab ${tab === 'gallery' ? 'active' : ''}" data-act="proj-tab" data-tab="gallery">Gallery${gallery.length ? ` <span class="badge">${gallery.length}</span>` : ''}</button>
         <button class="tab ${tab === 'versions' ? 'active' : ''}" data-act="proj-tab" data-tab="versions">Versions</button>
@@ -821,11 +821,11 @@
         <div class="set-grid">
           <div class="field"><label for="s-cf">CurseForge API key</label><input id="s-cf" class="input" type="password" data-text="curseforge_key" value="${esc(s.curseforge_key)}" placeholder="Needed to browse CurseForge" autocomplete="off">
             <span class="hint">Free key from console.curseforge.com</span></div>
-          <div class="field"><label for="s-ms">Microsoft app ID (advanced)</label><input id="s-ms" class="input" data-text="ms_client_id" value="${esc(s.ms_client_id)}" placeholder="Leave empty to use the built-in one" autocomplete="off">
-            <span class="hint">Only needed if this build has no app ID built in (see README).</span></div>
+          <div class="field"><label for="s-ms">Microsoft app ID (advanced)</label><input id="s-ms" class="input" data-text="ms_client_id" value="${esc(s.ms_client_id)}" placeholder="Optional if one is built in" autocomplete="off">
+            <span class="hint">Used for Microsoft sign-in. You can also set it from the sign-in window.</span></div>
         </div>
       </div>
-      <div class="panel row"><img src="logo.svg" width="46" height="46" alt=""><div class="grow"><b>Spiderflayer Launcher</b><div class="muted">v0.1.0 · lightweight Minecraft launcher</div></div></div>`;
+      <div class="panel row"><img src="logo.png" width="46" height="46" alt=""><div class="grow"><b>Spiderflayer Launcher</b><div class="muted">v0.1.0 · lightweight Minecraft launcher</div></div></div>`;
 
     $$('[data-slide]', view).forEach((el) => el.addEventListener('input', () => {
       const k = el.dataset.slide;
@@ -879,10 +879,8 @@
             <button class="icon-btn" data-act="acct-remove" data-id="${esc(a.id)}" aria-label="Remove account">${ic('trash', 17)}</button>
           </div>`).join('') : '<div class="muted">No accounts yet.</div>'}
         ${extra || `
-        ${S.msReady
-          ? `<div class="field"><button class="btn primary lg" data-act="ms-login">${ic('link', 18)} Sign in with Microsoft</button>
-              <span class="hint">Opens Microsoft's own sign-in page in your browser. Approve it and you're logged in. <button class="linklike" data-act="ms-login-app">Use a window inside the launcher instead</button></span></div>`
-          : `<div class="note">Premium (Microsoft) sign-in isn't switched on in this build yet. It needs a one-time Microsoft app ID from the launcher's developer (see the README). Offline accounts work right now. <button class="linklike" data-act="goto-settings">I have an app ID</button></div>`}
+        <div class="field"><button class="btn primary lg" data-act="ms-login">${ic('link', 18)} Sign in with Microsoft</button>
+          <span class="hint">Opens Microsoft's sign-in page. Approve it and you're in. <button class="linklike" data-act="ms-login-app">Use a window inside the launcher</button></span></div>
         <div class="field"><label for="off-name">Offline account</label>
           <div class="row"><input id="off-name" class="input" placeholder="Username" maxlength="16" autocomplete="off"><button class="btn" data-act="acct-offline">Add</button></div></div>`}
       </div>
@@ -893,6 +891,15 @@
     openModal(accountsHtml(), { noFocus: !!S.acct.accounts.length });
   }
   function refreshAccountsModal(extra) { const m = $('#modal-root .modal'); if (m) m.innerHTML = accountsHtml(extra); }
+
+  function msSetupHtml(inApp) {
+    return `<div class="field"><label for="ms-id">Microsoft app ID</label>
+      <input id="ms-id" class="input" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off" spellcheck="false">
+      <span class="hint">One-time setup. Paste the ID of your Microsoft app and you're signed in right away. Mojang has to approve the app before premium accounts work.</span>
+      <div class="row wrap"><button class="btn primary" data-act="ms-save" data-app="${inApp ? 1 : 0}">Save and sign in</button>
+        <button class="btn" data-act="open-url" data-url="https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/CreateApplicationBlade/isMSAApp~/true">${ic('ext', 15)} Create an app ID</button>
+        <button class="btn ghost" data-act="ms-setup-cancel">Back</button></div></div>`;
+  }
 
   async function msLogin(inApp) {
     refreshAccountsModal(`<div class="field"><div class="row"><span class="spinner"></span><b>Waiting for Microsoft…</b></div>
@@ -1017,8 +1024,16 @@
     'acct-offline': async () => {
       try { S.acct = await invoke('add_offline', { name: $('#off-name').value }); refreshAccountsModal(); renderRail(); if (S.view.name === 'home') render(); } catch (e) { fail(e); }
     },
-    'ms-login': () => msLogin(false),
-    'ms-login-app': () => msLogin(true),
+    'ms-login': () => (S.msReady ? msLogin(false) : refreshAccountsModal(msSetupHtml(false))),
+    'ms-login-app': () => (S.msReady ? msLogin(true) : refreshAccountsModal(msSetupHtml(true))),
+    'ms-setup-cancel': () => refreshAccountsModal(),
+    'ms-save': async (el) => {
+      const v = ($('#ms-id').value || '').trim();
+      if (!/^[0-9a-fA-F-]{30,40}$/.test(v)) { toast("That doesn't look like an app ID. It's a long code with dashes.", 'error'); return; }
+      S.settings.ms_client_id = v;
+      try { await invoke('save_settings', { settings: S.settings }); S.msReady = true; } catch (e) { fail(e); return; }
+      msLogin(el.dataset.app === '1');
+    },
     'ms-cancel': () => invoke('ms_cancel').catch(() => {}),
     'goto-settings': () => { closeModal(); S.hist = []; S.view = { name: 'settings' }; render(); },
     'open-project': (el) => {

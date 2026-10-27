@@ -103,7 +103,7 @@ impl Default for Settings {
             bg_blur: 0,
             bg_dim: 25,
             glass: 60,
-            accent: "#ff3b4a".to_string(),
+            accent: "#8b5cf6".to_string(),
             theme: "oled".to_string(),
             hide_on_launch: true,
         }

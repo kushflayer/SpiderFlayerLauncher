@@ -76,8 +76,8 @@ try:
         pg.click('[data-act="theme"][data-t="dark"]'); pg.wait_for_timeout(150)
         check("dark theme applied", pg.evaluate("document.documentElement.dataset.theme")=="dark")
         pg.click('[data-act="theme"][data-t="oled"]')
-        pg.click('[data-act="accent"][data-c="#b4001b"]'); pg.wait_for_timeout(150)
-        check("accent applied", pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()")=="#b4001b")
+        pg.click('[data-act="accent"][data-c="#ec4899"]'); pg.wait_for_timeout(150)
+        check("accent applied", pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()")=="#ec4899")
         buf=io.BytesIO(); Image.new("RGB",(64,64),(10,200,90)).save(buf,"PNG"); open("/tmp/test-bg.png","wb").write(buf.getvalue())
         pg.set_input_files("#bg-file","/tmp/test-bg.png"); pg.wait_for_timeout(400)
         calls=[c[0] for c in pg.evaluate("window.__calls")]

@@ -1,6 +1,6 @@
 # Spiderflayer Launcher
 
-A light Minecraft launcher in the style of the Modrinth app: red accents, OLED-black default theme, glass panels and squircle corners over a custom background. Works with **offline (cracked)** and **Microsoft (premium)** accounts, and installs from **Modrinth** and **CurseForge**.
+A light Minecraft launcher in the style of the Modrinth app: purple accents, OLED-black default theme, minimal Apple-style look, glass panels and squircle corners over a custom background. Works with **offline (cracked)** and **Microsoft (premium)** accounts, and installs from **Modrinth** and **CurseForge**.
 
 ## Why it's light
 
@@ -21,9 +21,9 @@ A light Minecraft launcher in the style of the Modrinth app: red accents, OLED-b
 | Project pages | Click any result for a Modrinth-style page: full description, **screenshot gallery with a full-size viewer**, creators, links, compatibility |
 | Versions | **Pick any version**, not just the newest: filter by game version, loader and release type, read changelogs, install the exact one. A warning appears if it doesn't match the instance. Required dependencies install automatically |
 | Modpacks | One-click install of Modrinth modpacks, and import of any `.mrpack` file |
-| Accounts | Offline accounts (name only) and Microsoft sign-in (device code, no embedded browser) |
+| Accounts | Offline accounts (name only) and Microsoft sign-in (one click, opens Microsoft's own page) |
 | Java | Downloads Mojang's own Java runtime for each Minecraft version, or uses the one you point to |
-| Look | OLED or Dark theme, accent colour, glass opacity, background blur and dimming, built-in lavender-fields default. **Your own background:** the picture button in the top bar, Settings, or drop an image on the window |
+| Look | OLED (default) or Dark theme, purple default accent, glass opacity, background blur and dimming, built-in lavender-fields default. **Your own background:** the picture button in the top bar, Settings, or drop an image on the window |
 
 Data lives in `%APPDATA%\SpiderFlayer` (Windows), `~/Library/Application Support/SpiderFlayer` (macOS) or `~/.local/share/SpiderFlayer` (Linux). Put an empty `portable.txt` next to the executable to keep everything in a `data` folder beside it instead.
 
@@ -41,22 +41,17 @@ tauri build    # installers in target/release/bundle
 
 The UI is tested without Rust against a mock backend: `python3 dev/flows.py` and `python3 dev/flows2.py` (needs Python, Playwright and Pillow).
 
-## Microsoft (premium) sign-in: one click for players
+## Microsoft (premium) sign-in
 
-Players click **Sign in with Microsoft**, Microsoft's own page opens, they approve it, and they are logged in. (There is also a "use a window inside the launcher" option.) Nobody types a code or an ID.
+Players click **Sign in with Microsoft**, Microsoft's own page opens, they approve it, and they are logged in.
 
-For that to work, **you, the developer, do a one-time setup**, because Microsoft requires every launcher to have its own app registration and **Mojang must approve it** before Minecraft's servers accept it. Until approved, sign-in shows "Mojang has not approved this Azure app yet". Offline accounts always work.
+Microsoft requires every launcher to have its own app registration, and **Mojang must approve it** before Minecraft's servers accept it. Until then sign-in says "Mojang has not approved this Azure app yet". Offline accounts always work.
 
-1. [Azure portal](https://portal.azure.com) > *App registrations* > *New registration*. Name it anything, supported accounts: **Personal Microsoft accounts only**.
-2. Under *Redirect URI* choose platform **Public client/native (mobile & desktop)** and enter `http://localhost`.
+1. [Azure portal](https://portal.azure.com) > *App registrations* > *New registration*, accounts: **Personal Microsoft accounts only**.
+2. Redirect URI: platform **Public client/native (mobile & desktop)**, value `http://localhost`.
 3. *Authentication* > turn on **Allow public client flows**.
-4. Copy the **Application (client) ID**.
-5. Ask Mojang to approve the app: <https://aka.ms/AppRegInfo>.
-6. Put the ID in the build so it's baked in for every player:
-   - GitHub Actions: repo *Settings > Secrets and variables > Actions > Variables*, add `SPIDERFLAYER_MS_CLIENT_ID`.
-   - Local build: `SPIDERFLAYER_MS_CLIENT_ID=<id> tauri build`.
-
-   Just testing? Paste the ID in *Settings > Accounts & keys > Microsoft app ID (advanced)* instead.
+4. Copy the **Application (client) ID** and request approval: <https://aka.ms/AppRegInfo>.
+5. Either bake it into builds so players never see it (GitHub Actions variable `SPIDERFLAYER_MS_CLIENT_ID`, or `SPIDERFLAYER_MS_CLIENT_ID=<id> tauri build`), or just click *Sign in with Microsoft* in the app: if no ID is set it asks for it once, right there, and remembers it.
 
 ## Other setup
 
@@ -74,6 +69,6 @@ For that to work, **you, the developer, do a one-time setup**, because Microsoft
 core/        launcher logic (no GUI): auth, versions, libraries, assets, Java, loaders, mods, modpacks
 src-tauri/   thin Tauri shell: commands + window
 ui/          index.html, style.css, app.js, logo, default background
-logo/        logo source (SVG) and render
+logo/        logo source images
 dev/         UI test harness (mock backend + Playwright scripts)
 ```

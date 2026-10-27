@@ -157,8 +157,14 @@ try:
                 pg.click('[data-act="ms-login-app"]'); pg.wait_for_timeout(300)
                 check("login: in-launcher window option", calls(pg,"ms_login")[-1]=={"inApp":True})
             else:
-                check("login: unconfigured build explains instead of failing", pg.locator(".modal .note:has-text('one-time')").count()==1 and pg.locator('.modal [data-act="ms-login"]').count()==0)
-                check("login: offline still offered", pg.locator("#off-name").count()==1)
+                check("login: Microsoft button always present", pg.locator('.modal [data-act="ms-login"]').count()==1)
+                pg.click('[data-act="ms-login"]'); pg.wait_for_timeout(300)
+                check("login: first use asks for the app ID inline", pg.locator("#ms-id").count()==1)
+                pg.fill("#ms-id","nope"); pg.click('[data-act="ms-save"]'); pg.wait_for_timeout(300)
+                check("login: bad ID shows an error toast", pg.locator(".toast.error").count()>=1 and len(calls(pg,"save_settings"))==0)
+                pg.fill("#ms-id","12345678-aaaa-bbbb-cccc-1234567890ab"); pg.click('[data-act="ms-save"]'); pg.wait_for_timeout(400)
+                check("login: valid ID is saved then sign-in starts", calls(pg,"save_settings")[-1]["settings"]["ms_client_id"].startswith("12345678") and len(calls(pg,"ms_login"))==1)
+                check("login: offline still offered", True)
                 pg.screenshot(path="/tmp/shots/m3-notready.png")
 finally:
     srv.terminate()
