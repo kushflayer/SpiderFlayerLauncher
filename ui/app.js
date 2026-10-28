@@ -396,7 +396,7 @@
     if (isRust(i)) {
       body.innerHTML = `<div class="panel"><div class="big" style="font-size:17px;font-weight:600;margin-bottom:6px">Fast, but no mods</div>
         <div class="muted">This instance runs <b>Horizon</b>, a Minecraft written in Rust. It gets far higher frame rates than Java Minecraft, but it can't run Fabric, Forge or other Java mods. Use any other instance for those.</div>
-        <div class="note">Horizon is installed and prepared with its own launcher (playhorizon.dev), once. It needs your own copy of Minecraft: Java Edition 26.3 and a Microsoft account that owns it.</div></div>`;
+        <div class="note">The first time you press Play, Spiderflayer downloads Horizon (its signed release, checked before installing), gets Minecraft 26.3 and Java from Mojang, and prepares everything by itself. That can take a while and a few GB. It needs a Microsoft account that owns Minecraft: Java Edition.</div></div>`;
       return;
     }
     body.innerHTML = `<div class="panel">

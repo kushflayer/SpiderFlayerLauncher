@@ -1,0 +1,10 @@
+[package]
+name = "horizon-release-sign"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Vendored from https://github.com/horizon-rust/horizon (MIT): checks signed release checksums"
+
+[dependencies]
+ring = "0.17"
+base64 = "0.22"

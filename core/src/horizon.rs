@@ -2,9 +2,8 @@
 //! reimplementation of Minecraft: Java Edition, instead of Java Minecraft. It is fast but cannot
 //! run Java mods.
 //!
-//! Spiderflayer does not download or rebuild Horizon. It runs the copy that Horizon's own
-//! launcher installed and prepared (that launcher checks the signed releases and imports files
-//! from the player's own Minecraft). The hand-over of the sign-in follows Horizon's documented
+//! Spiderflayer installs Horizon's own signed release by itself (horizon_install.rs), or reuses
+//! the copy Horizon's own launcher installed and prepared. The hand-over of the sign-in follows Horizon's documented
 //! `--session-file` contract: a short-lived, owner-only JSON file the game reads once.
 
 use crate::config::Paths;
@@ -20,7 +19,7 @@ pub const DEFAULT_ID: &str = "rust";
 const SEEDED: &str = ".rust-seeded";
 const MARK: &str = ".installed";
 const MANIFEST: &str = "horizon-resources.json";
-const GET_IT: &str = "Rust needs Horizon. Install the Horizon launcher from playhorizon.dev, install a version, and press Prepare there once (it needs your own Minecraft: Java Edition 26.3). Then press Play here again.";
+const GET_IT: &str = "Horizon is not installed yet.";
 
 #[cfg(windows)]
 const CLIENT: &str = "horizon-client.exe";
@@ -101,8 +100,30 @@ pub fn find_in(versions: &Path) -> Result<Install> {
     bail!("Horizon is installed but not prepared yet. Open the Horizon launcher and press Prepare once. It needs your own Minecraft: Java Edition 26.3.")
 }
 
-pub fn find() -> Result<Install> {
-    find_in(&launcher_home().join("versions"))
+/// The newest installed folder (prepared or not) under `versions`.
+pub fn newest_installed(versions: &Path) -> Option<PathBuf> {
+    let mut tags: Vec<String> = fs::read_dir(versions)
+        .ok()?
+        .flatten()
+        .filter(|e| e.path().join(MARK).exists() && e.path().join(CLIENT).is_file())
+        .filter_map(|e| e.file_name().into_string().ok())
+        .collect();
+    tags.sort_by_key(|t| std::cmp::Reverse(tag_key(t)));
+    tags.first().map(|t| versions.join(t))
+}
+
+/// A prepared Horizon: the one this launcher installed, else the one Horizon's own launcher did.
+pub fn find(paths: &Paths) -> Result<Install> {
+    find_in(&crate::horizon_install::own_versions(paths))
+        .or_else(|_| find_in(&launcher_home().join("versions")))
+}
+
+/// Rust (Horizon) is for accounts that own the game, like Horizon's own launcher.
+pub fn require_account(account: &crate::auth::Account) -> Result<()> {
+    if account.kind != "microsoft" {
+        bail!("Rust (Horizon) needs a Microsoft account that owns Minecraft: Java Edition, like Horizon's own launcher. Sign in with Microsoft from your account menu.");
+    }
+    Ok(())
 }
 
 /// Writes the sign-in hand-over file (owner-only, read once by the game, refused after 2 minutes).
@@ -145,9 +166,7 @@ pub fn command(
     account: &crate::auth::Account,
     extra_args: &str,
 ) -> Result<Command> {
-    if account.kind != "microsoft" {
-        bail!("Rust (Horizon) needs a Microsoft account that owns Minecraft: Java Edition, like Horizon's own launcher. Sign in with Microsoft from your account menu.");
-    }
+    require_account(account)?;
     let home = game_home();
     fs::create_dir_all(&home)?;
     let session = write_session(&home, &account.name, &account.id, &account.access_token)?;

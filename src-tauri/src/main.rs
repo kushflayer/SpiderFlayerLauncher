@@ -6,7 +6,7 @@ use serde_json::{json, Value};
 use spiderflayer_core::config::{Paths, Settings};
 use spiderflayer_core::instance::{self, ContentFile, Instance};
 use spiderflayer_core::util::{safe_file_name, Progress};
-use spiderflayer_core::{auth, horizon, launch, loaders, modpack, mods, mojang};
+use spiderflayer_core::{auth, horizon, horizon_install, launch, loaders, modpack, mods, mojang};
 use std::collections::HashMap;
 use std::fs;
 use std::io::{BufRead, BufReader};
@@ -461,7 +461,9 @@ fn launch_game(app: AppHandle, state: State<AppState>, id: String) -> Res<()> {
     let acct = err(auth::ensure_fresh(&paths, &settings.ms_client_id))?;
     let mut child = if inst.loader == horizon::LOADER {
         // "Rust": run Horizon (installed and prepared by its own launcher) instead of Java.
-        let install = err(horizon::find())?;
+        err(horizon::require_account(&acct))?;
+        // First Play downloads, verifies and prepares Horizon by itself.
+        let install = err(horizon_install::ensure(&paths, &rep))?;
         inst.last_played = spiderflayer_core::util::now_secs();
         err(instance::save(&paths, &inst))?;
         let mut cmd = err(horizon::command(&install, &acct, &inst.java_args))?;

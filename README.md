@@ -57,10 +57,12 @@ Microsoft requires every launcher to have its own app registration, and **Mojang
 
 A default instance called **Rust** runs [Horizon](https://github.com/horizon-rust/horizon) (MIT), an unofficial Minecraft: Java Edition rewrite in Rust, instead of Java Minecraft. It is much faster but **cannot run Java mods** (Fabric, Forge). It is created once on first start; delete it and it stays deleted.
 
-- Spiderflayer does not download or bundle Horizon. It runs the copy that **Horizon's own launcher** (playhorizon.dev) installed and prepared. Install a version there and press *Prepare* once (needs your own Minecraft: Java Edition 26.3, and Java 25 for that step).
+- **First Play installs everything by itself.** It downloads Horizon's release for your system and installs it only if its SHA-256 matches the release's `SHA256SUMS` and that list is signed by a key built into the launcher (the same check Horizon's own launcher does; the check is `vendor/horizon-release-sign`, MIT, copied from the Horizon repository). Then it installs Minecraft 26.3, Mojang's Java and the server jar from Mojang into Spiderflayer's folder, and runs Horizon's own `horizon-prepare`. Expect a few GB and several minutes once.
+- If Horizon's own launcher already installed and prepared a version, that one is used instead.
+- Before shipping, compare the key in `vendor/horizon-release-sign/release-keys.txt` with the one in the official repository (`crates/horizon-release-sign/release-keys.txt`).
 - It needs a **Microsoft account that owns Minecraft**, the same rule as Horizon's launcher. Offline accounts are refused for this instance.
 - The sign-in is handed over the way Horizon documents: an owner-only session file the game reads once.
-- Horizon is by its own authors and licensed MIT; see its repository for its licence and third-party notices. Spiderflayer contains none of its code.
+- Horizon is by its own authors and licensed MIT (its licence is kept in `vendor/horizon-release-sign/LICENSE`). Spiderflayer contains only that small checksum-verification crate, not the game.
 
 ## Other setup
 

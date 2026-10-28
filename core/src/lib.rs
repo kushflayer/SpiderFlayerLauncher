@@ -6,6 +6,7 @@
 pub mod auth;
 pub mod config;
 pub mod horizon;
+pub mod horizon_install;
 pub mod instance;
 pub mod java;
 pub mod launch;
