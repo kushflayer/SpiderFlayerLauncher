@@ -6,7 +6,7 @@ use serde_json::{json, Value};
 use spiderflayer_core::config::{Paths, Settings};
 use spiderflayer_core::instance::{self, ContentFile, Instance};
 use spiderflayer_core::util::{safe_file_name, Progress};
-use spiderflayer_core::{auth, launch, loaders, modpack, mods, mojang};
+use spiderflayer_core::{auth, horizon, launch, loaders, modpack, mods, mojang};
 use std::collections::HashMap;
 use std::fs;
 use std::io::{BufRead, BufReader};
@@ -459,36 +459,46 @@ fn launch_game(app: AppHandle, state: State<AppState>, id: String) -> Res<()> {
 
     let mut inst = err(instance::get(&paths, &id))?;
     let acct = err(auth::ensure_fresh(&paths, &settings.ms_client_id))?;
-    let java = err(instance::prepare(&paths, &mut inst, &settings, &rep))?;
-    inst.last_played = spiderflayer_core::util::now_secs();
-    err(instance::save(&paths, &inst))?;
+    let mut child = if inst.loader == horizon::LOADER {
+        // "Rust": run Horizon (installed and prepared by its own launcher) instead of Java.
+        let install = err(horizon::find())?;
+        inst.last_played = spiderflayer_core::util::now_secs();
+        err(instance::save(&paths, &inst))?;
+        let mut cmd = err(horizon::command(&install, &acct, &inst.java_args))?;
+        rep(Progress::msg("launch", "Starting Horizon"));
+        err(anyhow::Context::context(cmd.spawn(), "could not start Horizon"))?
+    } else {
+        let java = err(instance::prepare(&paths, &mut inst, &settings, &rep))?;
+        inst.last_played = spiderflayer_core::util::now_secs();
+        err(instance::save(&paths, &inst))?;
 
-    let game_dir = err(paths.game_dir(&inst.id))?;
-    let memory = if inst.memory_mb > 0 {
-        inst.memory_mb
-    } else {
-        settings.default_memory_mb
+        let game_dir = err(paths.game_dir(&inst.id))?;
+        let memory = if inst.memory_mb > 0 {
+            inst.memory_mb
+        } else {
+            settings.default_memory_mb
+        };
+        let (token, user_type) = if acct.kind == "microsoft" {
+            (acct.access_token.as_str(), "msa")
+        } else {
+            ("0", "legacy")
+        };
+        let args = err(launch::build(
+            &paths,
+            &launch::LaunchCtx {
+                version_id: &inst.version_id,
+                player: &acct.name,
+                uuid: &acct.id,
+                token,
+                user_type,
+                game_dir: &game_dir,
+                memory_mb: memory,
+                extra_jvm: &inst.java_args,
+            },
+        ))?;
+        rep(Progress::msg("launch", "Starting Minecraft"));
+        err(launch::spawn(&java, &args, &game_dir))?
     };
-    let (token, user_type) = if acct.kind == "microsoft" {
-        (acct.access_token.as_str(), "msa")
-    } else {
-        ("0", "legacy")
-    };
-    let args = err(launch::build(
-        &paths,
-        &launch::LaunchCtx {
-            version_id: &inst.version_id,
-            player: &acct.name,
-            uuid: &acct.id,
-            token,
-            user_type,
-            game_dir: &game_dir,
-            memory_mb: memory,
-            extra_jvm: &inst.java_args,
-        },
-    ))?;
-    rep(Progress::msg("launch", "Starting Minecraft"));
-    let mut child = err(launch::spawn(&java, &args, &game_dir))?;
     let pid = child.id();
     state.running.lock().unwrap().insert(id.clone(), pid);
     let _ = app.emit("game-started", json!({ "id": id }));
@@ -530,6 +540,7 @@ fn launch_game(app: AppHandle, state: State<AppState>, id: String) -> Res<()> {
 fn main() {
     let paths = Paths::new();
     let _ = fs::create_dir_all(&paths.root);
+    let _ = horizon::ensure_default(&paths);
     let settings = Settings::load(&paths);
     tauri::Builder::default()
         .manage(AppState {

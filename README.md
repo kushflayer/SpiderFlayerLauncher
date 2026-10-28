@@ -53,6 +53,15 @@ Microsoft requires every launcher to have its own app registration, and **Mojang
 4. Copy the **Application (client) ID** and request approval: <https://aka.ms/AppRegInfo>.
 5. Either bake it into builds so players never see it (GitHub Actions variable `SPIDERFLAYER_MS_CLIENT_ID`, or `SPIDERFLAYER_MS_CLIENT_ID=<id> tauri build`), or just click *Sign in with Microsoft* in the app: if no ID is set it asks for it once, right there, and remembers it.
 
+## The "Rust" instance (Horizon)
+
+A default instance called **Rust** runs [Horizon](https://github.com/horizon-rust/horizon) (MIT), an unofficial Minecraft: Java Edition rewrite in Rust, instead of Java Minecraft. It is much faster but **cannot run Java mods** (Fabric, Forge). It is created once on first start; delete it and it stays deleted.
+
+- Spiderflayer does not download or bundle Horizon. It runs the copy that **Horizon's own launcher** (playhorizon.dev) installed and prepared. Install a version there and press *Prepare* once (needs your own Minecraft: Java Edition 26.3, and Java 25 for that step).
+- It needs a **Microsoft account that owns Minecraft**, the same rule as Horizon's launcher. Offline accounts are refused for this instance.
+- The sign-in is handed over the way Horizon documents: an owner-only session file the game reads once.
+- Horizon is by its own authors and licensed MIT; see its repository for its licence and third-party notices. Spiderflayer contains none of its code.
+
 ## Other setup
 
 **CurseForge:** get a free API key at <https://console.curseforge.com> and paste it in *Settings > Accounts & keys*. Modrinth needs no key.

@@ -133,6 +133,20 @@ try:
         pg.screenshot(path="/tmp/shots/p5-settings-bg.png")
         b.close()
 
+        # ---- Rust (Horizon) instance
+        ctx=p.chromium.launch().new_context(viewport={"width":1180,"height":740}); ctx.add_init_script(path="/home/claude/spiderflayer/dev/mock.js")
+        pg=ctx.new_page(); pg.goto("http://localhost:8767/index.html"); pg.wait_for_timeout(500)
+        pg.click('[data-to="library"]'); pg.wait_for_timeout(200)
+        check("Rust is listed with its label", "fast, no mods" in pg.inner_text(".tiles"))
+        pg.click('.card[data-act="open-inst"]:has-text("Rust")'); pg.wait_for_timeout(300)
+        check("Rust page explains no mods and has no Add content", "can't run Fabric" in pg.inner_text("#view") and pg.locator('.inst-head [data-act="add-content"]').count()==0)
+        pg.screenshot(path="/tmp/shots/r1-rust.png")
+        pg.click('.inst-head .js-play'); pg.wait_for_timeout(300)
+        check("Rust play calls launch_game", any(c["id"]=="rust" for c in calls(pg,"launch_game")))
+        pg.click('[data-to="browse"]'); pg.wait_for_timeout(500)
+        pg.click('[data-act="install"] >> nth=0'); pg.wait_for_timeout(300)
+        check("install picker never offers Rust", pg.locator('[data-pick]').count()>0 and pg.locator('[data-pick="rust"]').count()==0)
+
         # ---- surface styles
         ctx=p.chromium.launch().new_context(viewport={"width":1180,"height":740}); ctx.add_init_script(path="/home/claude/spiderflayer/dev/mock.js")
         pg=ctx.new_page(); pg.goto("http://localhost:8767/index.html"); pg.wait_for_timeout(500)

@@ -6,6 +6,7 @@
     { id: 'fabric-1-21-1', name: 'Vanilla+ Fabric', mc_version: '1.21.1', loader: 'fabric', loader_version: '0.16.9', version_id: 'x', memory_mb: 0, java_args: '', created: 1, last_played: 1700000000 },
     { id: 'forge-1-20-1', name: 'Create: Above and Beyond', mc_version: '1.20.1', loader: 'forge', loader_version: '47.3.0', version_id: 'y', memory_mb: 4096, java_args: '', created: 2, last_played: 1699000000 },
     { id: 'plain', name: 'Plain 1.8.9', mc_version: '1.8.9', loader: 'vanilla', loader_version: '', version_id: 'z', memory_mb: 0, java_args: '', created: 3, last_played: 0 },
+    { id: 'rust', name: 'Rust', mc_version: '26.3', loader: 'horizon', loader_version: '', version_id: '', memory_mb: 0, java_args: '', created: 4, last_played: 0 },
   ];
   let acct = { accounts: [], selected: '' };
   if (!location.search.includes('noacct')) acct = { accounts: [{ id: 'u1', name: 'SpiderSlayer', kind: 'offline' }, { id: 'u2', name: 'Notch', kind: 'microsoft' }], selected: 'u1' };

@@ -54,7 +54,7 @@
   };
   const ic = (name, size = 20) => `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[name] || ''}</svg>`;
 
-  const LOADER = { vanilla: 'Vanilla', fabric: 'Fabric', quilt: 'Quilt', forge: 'Forge', neoforge: 'NeoForge' };
+  const LOADER = { vanilla: 'Vanilla', fabric: 'Fabric', quilt: 'Quilt', forge: 'Forge', neoforge: 'NeoForge', horizon: 'Horizon' };
   const KINDS = [
     { id: 'modpack', label: 'Modpacks' },
     { id: 'mod', label: 'Mods' },
@@ -94,7 +94,8 @@
   const pic = (name, cls = '') => `<div class="pic ${cls}" style="--h:${hue(name)}">${esc((String(name)[0] || '?').toUpperCase())}</div>`;
   const projPic = (url, name, cls = '') => (safeUrl(url) ? `<img class="pic ${cls}" src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : pic(name, cls));
   const inst = (id) => S.instances.find((i) => i.id === id);
-  const instLabel = (i) => `${LOADER[i.loader] || i.loader}${i.loader_version && i.loader !== 'vanilla' ? ' ' + i.loader_version : ''} · ${i.mc_version}`;
+  const isRust = (i) => i.loader === 'horizon';
+  const instLabel = (i) => isRust(i) ? `Horizon · ${i.mc_version} · fast, no mods` : `${LOADER[i.loader] || i.loader}${i.loader_version && i.loader !== 'vanilla' ? ' ' + i.loader_version : ''} · ${i.mc_version}`;
   const acctName = () => { const a = S.acct.accounts.find((x) => x.id === S.acct.selected) || S.acct.accounts[0]; return a ? a.name : ''; };
 
   function toast(msg, type = 'ok') {
@@ -379,7 +380,7 @@
           <div class="row wrap">
             <button class="btn primary lg js-play" data-act="play" data-id="${esc(i.id)}">${playHtml(i.id, false)}</button>
             <button class="btn" data-act="open-folder" data-id="${esc(i.id)}">${ic('folder', 18)} Open folder</button>
-            <button class="btn" data-act="add-content" data-id="${esc(i.id)}">${ic('plus', 18)} Add content</button>
+            ${isRust(i) ? '' : `<button class="btn" data-act="add-content" data-id="${esc(i.id)}">${ic('plus', 18)} Add content</button>`}
           </div>
         </div>
       </div>
@@ -392,6 +393,12 @@
 
   async function instContent(i) {
     const body = $('#tab-body');
+    if (isRust(i)) {
+      body.innerHTML = `<div class="panel"><div class="big" style="font-size:17px;font-weight:600;margin-bottom:6px">Fast, but no mods</div>
+        <div class="muted">This instance runs <b>Horizon</b>, a Minecraft written in Rust. It gets far higher frame rates than Java Minecraft, but it can't run Fabric, Forge or other Java mods. Use any other instance for those.</div>
+        <div class="note">Horizon is installed and prepared with its own launcher (playhorizon.dev), once. It needs your own copy of Minecraft: Java Edition 26.3 and a Microsoft account that owns it.</div></div>`;
+      return;
+    }
     body.innerHTML = `<div class="panel">
       <div class="chips" style="margin-bottom:12px">${FOLDERS.map((f) => `<button class="chip ${S.content.kind === f.id ? 'active' : ''}" data-act="content-kind" data-k="${f.id}">${f.label}</button>`).join('')}</div>
       <div id="content-list" class="muted">Loading…</div></div>`;
@@ -520,10 +527,11 @@
 
   function pickInstance(title) {
     return new Promise((resolve) => {
-      if (!S.instances.length) { toast('Create an instance first.', 'error'); openCreate(); resolve(null); return; }
+      const targets = S.instances.filter((i) => !isRust(i));
+      if (!targets.length) { toast('Create an instance first.', 'error'); openCreate(); resolve(null); return; }
       let chosen = null;
       const m = openModal(`<h2>${esc(title)}</h2><div class="muted">Choose where to put it.</div>
-        <div class="body">${S.instances.map((i) => `<button class="acct" data-pick="${esc(i.id)}" style="text-align:left;cursor:pointer">${pic(i.name, 'sm')}<div class="grow"><b>${esc(i.name)}</b><div class="muted">${esc(instLabel(i))}</div></div></button>`).join('')}</div>`,
+        <div class="body">${targets.map((i) => `<button class="acct" data-pick="${esc(i.id)}" style="text-align:left;cursor:pointer">${pic(i.name, 'sm')}<div class="grow"><b>${esc(i.name)}</b><div class="muted">${esc(instLabel(i))}</div></div></button>`).join('')}</div>`,
         { onClose: () => resolve(chosen) });
       m.addEventListener('click', (e) => { const b = e.target.closest('[data-pick]'); if (b) { chosen = b.dataset.pick; closeModal(); } });
     });

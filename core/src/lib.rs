@@ -5,6 +5,7 @@
 
 pub mod auth;
 pub mod config;
+pub mod horizon;
 pub mod instance;
 pub mod java;
 pub mod launch;
