@@ -139,7 +139,8 @@
     const s = S.settings;
     const r = document.documentElement;
     r.dataset.theme = s.theme || 'oled';
-    r.style.setProperty('--accent', s.accent || '#ff3b4a');
+    r.dataset.surface = ['aero', 'frosted', 'solid'].includes(s.surface) ? s.surface : 'aero';
+    r.style.setProperty('--accent', s.accent || '#8b5cf6');
     r.style.setProperty('--glass', String((s.glass ?? 60) / 100));
     r.style.setProperty('--bgblur', `${s.bg_blur || 0}px`);
     r.style.setProperty('--dim', String((s.bg_dim ?? 25) / 100));
@@ -186,20 +187,27 @@
 
   function renderRail() {
     const a = S.acct.accounts.find((x) => x.id === S.acct.selected) || S.acct.accounts[0];
-    const nav = (id, icon, label, active) =>
-      `<button class="rail-btn ${active ? 'active' : ''}" data-act="nav" data-to="${id}" aria-label="${label}" title="${label}">${ic(icon, 22)}${id === 'library' && S.running.size ? '<span class="dot"></span>' : ''}</button>`;
     const v = S.view.name;
+    const item = (id, icon, label, active) =>
+      `<button class="side-item rail-btn ${active ? 'active' : ''}" data-act="nav" data-to="${id}">${ic(icon, 18)}<span>${label}</span></button>`;
+    const mine = S.instances.slice(0, 14).map((i) =>
+      `<button class="side-item sub ${v === 'instance' && S.view.id === i.id ? 'active' : ''}" data-act="open-inst" data-id="${esc(i.id)}" title="${esc(i.name)}"><b class="mini-pic" style="--h:${hue(i.name)}">${esc((i.name[0] || '?').toUpperCase())}</b><span>${esc(i.name)}</span>${S.running.has(i.id) ? '<i class="live"></i>' : ''}</button>`).join('');
     $('#rail').innerHTML = `
-      <button class="logo" data-act="nav" data-to="home" aria-label="Spiderflayer Launcher" title="Spiderflayer Launcher"><img src="logo.png" alt=""></button>
-      ${nav('home', 'home', 'Home', v === 'home')}
-      ${nav('browse', 'compass', 'Discover content', v === 'browse' || v === 'project')}
-      ${nav('library', 'box', 'Library', v === 'library' || v === 'instance')}
-      <button class="rail-btn" data-act="create" aria-label="New instance" title="New instance">${ic('plus', 22)}</button>
-      <div class="rail-space"></div>
-      ${nav('settings', 'gear', 'Settings', v === 'settings')}
-      <button class="rail-btn" data-act="accounts" aria-label="Accounts" title="${a ? esc(a.name) : 'Add an account'}">
-        <span class="avatar">${a ? esc(a.name[0].toUpperCase()) + `<img src="https://minotar.net/helm/${encodeURIComponent(a.name)}/64.png" alt="" style="position:absolute;inset:4px;width:40px;height:40px;border-radius:14px" onerror="this.remove()">` : ic('user', 20)}</span>
-      </button>`;
+      <div class="brand" data-tauri-drag-region><img src="logo.png" alt=""><b>Spiderflayer</b></div>
+      <div class="side-group">
+        ${item('home', 'home', 'Home', v === 'home')}
+        ${item('browse', 'compass', 'Discover', v === 'browse' || v === 'project')}
+        ${item('library', 'box', 'Library', v === 'library')}
+      </div>
+      <div class="side-label"><span>Instances</span><button class="side-add" data-act="create" aria-label="New instance" title="New instance">${ic('plus', 15)}</button></div>
+      <div class="side-list">${mine || '<div class="side-empty">Nothing here yet</div>'}</div>
+      <div class="side-foot">
+        ${item('settings', 'gear', 'Settings', v === 'settings')}
+        <button class="acct-row" data-act="accounts" aria-label="Accounts">
+          <span class="avatar">${a ? esc(a.name[0].toUpperCase()) + `<img src="https://minotar.net/helm/${encodeURIComponent(a.name)}/64.png" alt="" onerror="this.remove()">` : ic('user', 18)}</span>
+          <span class="acct-name">${a ? esc(a.name) : 'Add account'}<small>${a ? (a.kind === 'microsoft' ? 'Microsoft' : 'Offline') : 'Not signed in'}</small></span>
+        </button>
+      </div>`;
     $('#runstate').className = S.running.size ? 'on' : '';
     $('#runstate').textContent = S.running.size ? '● Minecraft is running' : '';
   }
@@ -278,9 +286,10 @@
   function hideProgress() { clearTimeout(progTimer); $('#progress').hidden = true; }
 
   // ---------- HOME ----------
+  // Launchpad-style tile: big icon, name underneath, play button appears on hover/focus.
   function instCard(i) {
-    return `<div class="card" data-act="open-inst" data-id="${esc(i.id)}" tabindex="0" role="button">
-      ${pic(i.name)}
+    return `<div class="card tile" data-act="open-inst" data-id="${esc(i.id)}" tabindex="0" role="button">
+      ${pic(i.name, 'xl')}
       <div class="meta"><b>${esc(i.name)}</b><span>${esc(instLabel(i))}</span></div>
       <button class="play-fab js-play" data-act="play" data-id="${esc(i.id)}">${playHtml(i.id, true)}</button>
     </div>`;
@@ -295,19 +304,23 @@
   }
 
   async function renderHome(view) {
-    const recent = S.instances.filter((i) => i.last_played).slice(0, 6);
+    const recent = S.instances.filter((i) => i.last_played).slice(0, 8);
+    const hero = recent[0] || S.instances[0];
     const name = acctName();
+    const hour = new Date().getHours();
+    const greet = hour < 5 ? 'Good night' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
     view.innerHTML = `
-      <h1 class="page-title">Welcome back${name ? ', ' + esc(name) : ''}!</h1>
-      <div class="section-title">Jump back in</div>
-      ${recent.length
-        ? `<div class="grid">${recent.map(instCard).join('')}</div>`
-        : `<div class="panel empty"><div class="big">${S.instances.length ? 'Pick an instance to play' : 'No instances yet'}</div>
-            <div>${S.instances.length ? 'Open your Library and press play.' : 'Create one, or grab a modpack from Discover.'}</div>
-            <div class="row" style="justify-content:center;margin-top:16px">
-              <button class="btn primary" data-act="create">${ic('plus', 18)} New instance</button>
-              <button class="btn" data-act="nav" data-to="browse">${ic('compass', 18)} Discover content</button>
-            </div></div>`}
+      <div class="greet">${greet}${name ? ', ' + esc(name) : ''}</div>
+      ${hero
+        ? `<section class="hero">
+            ${pic(hero.name, 'xl')}
+            <div class="grow"><div class="eyebrow">${hero.last_played ? 'Continue playing' : 'Ready to play'}</div><h1>${esc(hero.name)}</h1><div class="muted">${esc(instLabel(hero))}</div></div>
+            <button class="btn primary lg js-play" data-act="play" data-id="${esc(hero.id)}">${playHtml(hero.id, false)}</button>
+          </section>`
+        : `<section class="hero empty-hero"><div class="grow"><div class="eyebrow">Welcome</div><h1>Let's get you playing</h1><div class="muted">Create an instance, or install a modpack from Discover.</div></div>
+            <button class="btn lg" data-act="nav" data-to="browse">${ic('compass', 18)} Discover</button>
+            <button class="btn primary lg" data-act="create">${ic('plus', 18)} New instance</button></section>`}
+      ${recent.length > 1 ? `<div class="section-title">Recent</div><div class="tiles">${recent.slice(1).map(instCard).join('')}</div>` : ''}
       <div id="featured"></div>`;
     renderFeatured();
     if (!S.featured) {
@@ -348,7 +361,7 @@
         <input type="file" id="mrpack-file" accept=".mrpack,application/zip" hidden>
       </div>
       ${loaders.length > 2 ? `<div class="chips" style="margin:0 4px 14px">${loaders.map((l) => `<button class="chip ${filter === l ? 'active' : ''}" data-act="lib-filter" data-f="${l}">${l === 'all' ? 'All' : esc(LOADER[l] || l)}</button>`).join('')}</div>` : ''}
-      <div class="grid">${list.map(instCard).join('')}<div class="card add" data-act="create" tabindex="0" role="button">${ic('plus', 20)} New instance</div></div>`;
+      <div class="tiles">${list.map(instCard).join('')}<div class="card tile add" data-act="create" tabindex="0" role="button"><div class="pic xl plus">${ic('plus', 30)}</div><div class="meta"><b>New instance</b></div></div></div>`;
     $('#mrpack-file').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) importPack(f); });
   }
 
@@ -779,6 +792,11 @@
       <h1 class="page-title">Settings</h1>
       <div class="panel">
         <div class="section-title" style="margin-top:0">Appearance</div>
+        <div class="label" style="margin-bottom:8px">Surface style</div>
+        <div class="chips surf-row" style="gap:12px;margin-bottom:18px">
+          ${[['aero', 'Aero', 'Glass with a bright edge'], ['frosted', 'Frosted', 'Soft, matte blur'], ['solid', 'Solid', 'No blur, lightest']].map(([id, n, d]) => `<button class="surf-card ${(s.surface || 'aero') === id ? 'active' : ''}" data-act="surface" data-sf="${id}"><i class="sf-${id}"></i><b>${n}</b><small>${d}</small></button>`).join('')}
+        </div>
+        <div class="label" style="margin-bottom:8px">Colour mode</div>
         <div class="chips" style="gap:12px;margin-bottom:16px">
           <button class="theme-card ${s.theme === 'oled' ? 'active' : ''}" data-act="theme" data-t="oled"><i style="background:#000"></i><b>OLED</b></button>
           <button class="theme-card ${s.theme === 'dark' ? 'active' : ''}" data-act="theme" data-t="dark"><i style="background:#1a1214"></i><b>Dark</b></button>
@@ -1014,6 +1032,7 @@
     'browse-kind': (el) => { S.browse.kind = el.dataset.k; S.browse.hits = []; if (S.browse.kind === 'modpack') S.browse.target = ''; render(); },
     install: (el) => installProject(S.browse.hits[+el.dataset.n], el),
     more: () => runSearch(false),
+    surface: (el) => { S.settings.surface = el.dataset.sf; applyTheme(); saveSettings(); render(); },
     theme: (el) => { S.settings.theme = el.dataset.t; applyTheme(); saveSettings(); render(); },
     accent: (el) => { S.settings.accent = el.dataset.c; applyTheme(); saveSettings(); render(); },
     'pick-bg': () => $('#bg-file').click(),
@@ -1080,9 +1099,6 @@
   // ---------- window chrome ----------
   function setupChrome() {
     $('#back').innerHTML = ic('left', 20);
-    $('#wmin').innerHTML = ic('min', 18);
-    $('#wmax').innerHTML = ic('max', 16);
-    $('#wclose').innerHTML = ic('x', 18);
     $('#bgbtn').innerHTML = ic('image', 19);
     $('#bgbtn').addEventListener('click', () => $('#bg-file').click());
     $('#bg-file').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; setBackgroundFile(f); });

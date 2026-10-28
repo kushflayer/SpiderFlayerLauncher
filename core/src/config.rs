@@ -89,6 +89,8 @@ pub struct Settings {
     pub glass: u32,
     pub accent: String,
     pub theme: String,
+    /// Surface style: "aero" (glass), "frosted" or "solid".
+    pub surface: String,
     pub hide_on_launch: bool,
 }
 
@@ -105,6 +107,7 @@ impl Default for Settings {
             glass: 60,
             accent: "#8b5cf6".to_string(),
             theme: "oled".to_string(),
+            surface: "aero".to_string(),
             hide_on_launch: true,
         }
     }

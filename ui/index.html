@@ -13,18 +13,18 @@
   <div id="app">
     <nav id="rail" class="glass" aria-label="Main"></nav>
 
-    <div id="main">
-      <header id="top" class="glass" data-tauri-drag-region>
+    <div id="main" class="glass">
+      <header id="top" data-tauri-drag-region>
+        <div class="lights" aria-label="Window">
+          <button class="light close" id="wclose" aria-label="Close" title="Close"></button>
+          <button class="light min" id="wmin" aria-label="Minimize" title="Minimize"></button>
+          <button class="light max" id="wmax" aria-label="Maximize" title="Maximize"></button>
+        </div>
         <button class="icon-btn" id="back" aria-label="Back" title="Back"></button>
         <div id="crumb" data-tauri-drag-region></div>
         <div class="grow" data-tauri-drag-region></div>
         <div id="runstate"></div>
         <button class="icon-btn" id="bgbtn" aria-label="Change background" title="Change background"></button>
-        <div class="wc">
-          <button class="icon-btn" id="wmin" aria-label="Minimize"></button>
-          <button class="icon-btn" id="wmax" aria-label="Maximize"></button>
-          <button class="icon-btn close" id="wclose" aria-label="Close"></button>
-        </div>
       </header>
       <main id="view"></main>
     </div>

@@ -133,6 +133,17 @@ try:
         pg.screenshot(path="/tmp/shots/p5-settings-bg.png")
         b.close()
 
+        # ---- surface styles
+        ctx=p.chromium.launch().new_context(viewport={"width":1180,"height":740}); ctx.add_init_script(path="/home/claude/spiderflayer/dev/mock.js")
+        pg=ctx.new_page(); pg.goto("http://localhost:8767/index.html"); pg.wait_for_timeout(500)
+        check("default surface is Aero", pg.evaluate("document.documentElement.dataset.surface")=="aero")
+        pg.click('[data-to="settings"]'); pg.wait_for_timeout(200)
+        check("three surface choices", pg.locator('[data-act="surface"]').count()==3)
+        for sf in ("solid","frosted","aero"):
+            pg.click(f'[data-act="surface"][data-sf="{sf}"]'); pg.wait_for_timeout(450)
+            check(f"surface {sf} applies and is saved", pg.evaluate("document.documentElement.dataset.surface")==sf and calls(pg,"save_settings")[-1]["settings"]["surface"]==sf)
+        check("solid turns blur off", (pg.click('[data-act="surface"][data-sf="solid"]') or True) and pg.evaluate("getComputedStyle(document.querySelector('#rail')).backdropFilter")=="none")
+
         # ---- Microsoft login (fresh context so there is no account)
         for label,url in [("configured","?noacct"),("not configured","?noacct&nomsid")]:
             ctx=b2=p.chromium.launch().new_context(viewport={"width":1180,"height":740})

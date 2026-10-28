@@ -1,6 +1,6 @@
 # Spiderflayer Launcher
 
-A light Minecraft launcher in the style of the Modrinth app: purple accents, OLED-black default theme, minimal Apple-style look, glass panels and squircle corners over a custom background. Works with **offline (cracked)** and **Microsoft (premium)** accounts, and installs from **Modrinth** and **CurseForge**.
+A light Minecraft launcher in the style of the Modrinth app: purple accents, OLED-black default theme, a macOS-inspired layout (labelled sidebar, traffic-light window buttons, Launchpad-style instance tiles), glass panels and squircle corners over a custom background. Works with **offline (cracked)** and **Microsoft (premium)** accounts, and installs from **Modrinth** and **CurseForge**.
 
 ## Why it's light
 
@@ -23,7 +23,7 @@ A light Minecraft launcher in the style of the Modrinth app: purple accents, OLE
 | Modpacks | One-click install of Modrinth modpacks, and import of any `.mrpack` file |
 | Accounts | Offline accounts (name only) and Microsoft sign-in (one click, opens Microsoft's own page) |
 | Java | Downloads Mojang's own Java runtime for each Minecraft version, or uses the one you point to |
-| Look | OLED (default) or Dark theme, purple default accent, glass opacity, background blur and dimming, built-in lavender-fields default. **Your own background:** the picture button in the top bar, Settings, or drop an image on the window |
+| Look | Three surface styles you pick in Settings: **Aero** (glass with a bright edge, default), **Frosted** (matte blur) and **Solid** (no blur, lightest on weak GPUs); OLED (default) or Dark theme, purple default accent, glass opacity, background blur and dimming, built-in lavender-fields default. **Your own background:** the picture button in the top bar, Settings, or drop an image on the window |
 
 Data lives in `%APPDATA%\SpiderFlayer` (Windows), `~/Library/Application Support/SpiderFlayer` (macOS) or `~/.local/share/SpiderFlayer` (Linux). Put an empty `portable.txt` next to the executable to keep everything in a `data` folder beside it instead.
 

@@ -24,14 +24,14 @@ try:
         check("MS sign-in is one button", pg.locator('[data-act="ms-login"]').count()==1)
         pg.click('[data-act="close-modal"]')
         # create fabric instance
-        pg.click('.rail-btn[data-act="create"]'); pg.wait_for_timeout(400)
+        pg.click('.side-add'); pg.wait_for_timeout(400)
         pg.select_option("#c-loader","fabric"); pg.wait_for_timeout(300)
         check("loader version list filled", pg.locator("#c-lv option").count()==3)
         pg.select_option("#c-mc","1.12.2"); pg.fill("#c-name","Test Pack"); pg.wait_for_timeout(300)
         pg.click("#c-go"); pg.wait_for_timeout(400)
         check("create -> lands on instance page", pg.locator("h1:has-text('Test Pack')").count()==1)
         # unsupported loader/version disables create
-        pg.click('.rail-btn[data-act="create"]'); pg.wait_for_timeout(300)
+        pg.click('.side-add'); pg.wait_for_timeout(300)
         pg.check("#c-snap"); pg.select_option("#c-mc","1.8.9"); pg.select_option("#c-loader","fabric"); pg.wait_for_timeout(300)
         check("unsupported loader version disables Create", pg.locator("#c-go").is_disabled())
         pg.keyboard.press("Escape")

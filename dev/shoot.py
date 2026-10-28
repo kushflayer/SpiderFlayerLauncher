@@ -20,6 +20,13 @@ try:
         pg.click('[data-tab="options"]'); pg.wait_for_timeout(150); pg.screenshot(path=out + "3b-options.png")
         pg.click('[data-to="browse"]'); pg.wait_for_timeout(500); pg.screenshot(path=out + "4-browse.png")
         pg.click('[data-to="settings"]'); pg.wait_for_timeout(250); pg.screenshot(path=out + "5-settings.png")
+        for sf in ("frosted", "solid", "aero"):
+            pg.click(f'[data-act="surface"][data-sf="{sf}"]'); pg.wait_for_timeout(250)
+            assert pg.evaluate("document.documentElement.dataset.surface") == sf
+            pg.screenshot(path=out + f"s-{sf}.png")
+        pg.click('[data-to="home"]'); pg.wait_for_timeout(300); pg.screenshot(path=out + "1b-home-aero.png")
+        pg.click('[data-to="library"]'); pg.wait_for_timeout(300); pg.screenshot(path=out + "2b-library.png")
+        pg.click('[data-to="browse"]'); pg.wait_for_timeout(400)
         pg.click('[data-act="create"] >> nth=0'); pg.wait_for_timeout(500); pg.screenshot(path=out + "6-create.png")
         pg.keyboard.press("Escape")
         pg.click('button[data-act="accounts"] >> nth=0'); pg.wait_for_timeout(200); pg.screenshot(path=out + "7-accounts.png")
