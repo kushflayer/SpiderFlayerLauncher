@@ -1,5 +1,6 @@
 // Test-only stand-in for the Tauri backend. Not shipped with the app.
 (() => {
+  window.SF_MS = !location.search.includes('msoff');
   const listeners = {};
   let settings = { curseforge_key: '', ms_client_id: '', java_path: '', default_memory_mb: 2048, background: null, bg_blur: 0, bg_dim: 25, glass: 60, accent: '#8b5cf6', theme: 'oled', surface: 'aero', hide_on_launch: true };
   let instances = [

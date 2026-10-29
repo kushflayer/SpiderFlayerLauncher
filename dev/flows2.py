@@ -159,6 +159,10 @@ try:
         check("solid turns blur off", (pg.click('[data-act="surface"][data-sf="solid"]') or True) and pg.evaluate("getComputedStyle(document.querySelector('#rail')).backdropFilter")=="none")
 
         # ---- Microsoft login (fresh context so there is no account)
+        ctx=p.chromium.launch().new_context(viewport={"width":1180,"height":740}); ctx.add_init_script(path="/home/claude/spiderflayer/dev/mock.js")
+        pg=ctx.new_page(); pg.goto("http://localhost:8767/index.html?noacct&msoff"); pg.wait_for_timeout(600)
+        check("MS off: button disabled and says not available yet", pg.locator('.modal [data-act="ms-login"]').count()==0 and "Not available yet" in pg.inner_text(".modal") and pg.locator("#off-name").count()==1)
+        pg.screenshot(path="/tmp/shots/m4-msoff.png")
         for label,url in [("configured","?noacct"),("not configured","?noacct&nomsid")]:
             ctx=b2=p.chromium.launch().new_context(viewport={"width":1180,"height":740})
             ctx.add_init_script(path="/home/claude/spiderflayer/dev/mock.js")

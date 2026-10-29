@@ -396,7 +396,7 @@
     if (isRust(i)) {
       body.innerHTML = `<div class="panel"><div class="big" style="font-size:17px;font-weight:600;margin-bottom:6px">Fast, but no mods</div>
         <div class="muted">This instance runs <b>Horizon</b>, a Minecraft written in Rust. It gets far higher frame rates than Java Minecraft, but it can't run Fabric, Forge or other Java mods. Use any other instance for those.</div>
-        <div class="note">The first time you press Play, Spiderflayer downloads Horizon (its signed release, checked before installing), gets Minecraft 26.3 and Java from Mojang, and prepares everything by itself. That can take a while and a few GB. It needs a Microsoft account that owns Minecraft: Java Edition.</div></div>`;
+        <div class="note">The first time you press Play, Spiderflayer downloads Horizon (its signed release, checked before installing), gets Minecraft 26.3 and Java from Mojang, and prepares everything by itself. That can take a while and a few GB. It needs a Microsoft account that owns Minecraft: Java Edition, so Rust is not available until Microsoft sign-in is.</div></div>`;
       return;
     }
     body.innerHTML = `<div class="panel">
@@ -893,9 +893,12 @@
   }
 
   // ---------- accounts ----------
+  // Microsoft sign-in is switched off until the app is approved by Mojang. Flip this (or set
+  // window.SF_MS = true) to bring it back; all the code behind it is kept.
+  const MS_ON = window.SF_MS === true;
   function accountsHtml(extra = '') {
     const list = S.acct.accounts;
-    return `<h2>Accounts</h2><div class="muted">Play with a Microsoft account, or offline with just a name.</div>
+    return `<h2>Accounts</h2><div class="muted">Play offline with just a name. Microsoft sign-in is coming.</div>
       <div class="body">
         ${list.length ? list.map((a) => `
           <div class="acct ${a.id === S.acct.selected ? 'sel' : ''}">
@@ -905,8 +908,11 @@
             <button class="icon-btn" data-act="acct-remove" data-id="${esc(a.id)}" aria-label="Remove account">${ic('trash', 17)}</button>
           </div>`).join('') : '<div class="muted">No accounts yet.</div>'}
         ${extra || `
-        <div class="field"><button class="btn primary lg" data-act="ms-login">${ic('link', 18)} Sign in with Microsoft</button>
-          <span class="hint">Opens Microsoft's sign-in page. Approve it and you're in. <button class="linklike" data-act="ms-login-app">Use a window inside the launcher</button></span></div>
+        <div class="field">${MS_ON
+          ? `<button class="btn primary lg" data-act="ms-login">${ic('link', 18)} Sign in with Microsoft</button>
+          <span class="hint">Opens Microsoft's sign-in page. Approve it and you're in. <button class="linklike" data-act="ms-login-app">Use a window inside the launcher</button></span>`
+          : `<button class="btn lg" disabled>${ic('link', 18)} Microsoft sign-in</button>
+          <span class="hint" id="ms-off">Not available yet. Offline accounts work for now.</span>`}</div>
         <div class="field"><label for="off-name">Offline account</label>
           <div class="row"><input id="off-name" class="input" placeholder="Username" maxlength="16" autocomplete="off"><button class="btn" data-act="acct-offline">Add</button></div></div>`}
       </div>

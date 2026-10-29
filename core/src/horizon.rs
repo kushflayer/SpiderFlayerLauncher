@@ -121,7 +121,7 @@ pub fn find(paths: &Paths) -> Result<Install> {
 /// Rust (Horizon) is for accounts that own the game, like Horizon's own launcher.
 pub fn require_account(account: &crate::auth::Account) -> Result<()> {
     if account.kind != "microsoft" {
-        bail!("Rust (Horizon) needs a Microsoft account that owns Minecraft: Java Edition, like Horizon's own launcher. Sign in with Microsoft from your account menu.");
+        bail!("Rust (Horizon) is not available yet: it needs a Microsoft account that owns Minecraft: Java Edition, and Microsoft sign-in is not available yet. Use another instance for now.");
     }
     Ok(())
 }
