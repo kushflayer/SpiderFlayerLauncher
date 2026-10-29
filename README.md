@@ -83,3 +83,7 @@ ui/          index.html, style.css, app.js, logo, default background
 logo/        logo source images
 dev/         UI test harness (mock backend + Playwright scripts)
 ```
+
+## Fonts
+
+The logo wordmark uses **Spiderman** (freeware, by Web Dog) and the rest of the interface uses **Speedy** (freeware, **non-commercial use only**, from fontspace.com). Both are in `ui/fonts/`. If you ever sell or monetise the launcher, replace Speedy or get the author's permission.

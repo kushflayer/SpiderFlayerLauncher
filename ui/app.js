@@ -194,7 +194,7 @@
     const mine = S.instances.slice(0, 14).map((i) =>
       `<button class="side-item sub ${v === 'instance' && S.view.id === i.id ? 'active' : ''}" data-act="open-inst" data-id="${esc(i.id)}" title="${esc(i.name)}"><b class="mini-pic" style="--h:${hue(i.name)}">${esc((i.name[0] || '?').toUpperCase())}</b><span>${esc(i.name)}</span>${S.running.has(i.id) ? '<i class="live"></i>' : ''}</button>`).join('');
     $('#rail').innerHTML = `
-      <div class="brand" data-tauri-drag-region><img src="logo.png" alt=""><b>Spiderflayer</b></div>
+      <div class="brand" data-tauri-drag-region><img src="logo.png" alt=""><b>SPIDERFLAYER</b></div>
       <div class="side-group">
         ${item('home', 'home', 'Home', v === 'home')}
         ${item('browse', 'compass', 'Discover', v === 'browse' || v === 'project')}
