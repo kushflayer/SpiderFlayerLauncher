@@ -67,7 +67,7 @@
     { id: 'shaderpacks', label: 'Shaders' },
   ];
   const SORTS = [['relevance', 'Relevance'], ['downloads', 'Downloads'], ['newest', 'Newest'], ['updated', 'Recently updated']];
-  const ACCENTS = ['#8b5cf6', '#a78bfa', '#c084fc', '#ec4899', '#ff3b4a'];
+  const ACCENTS = ['#ff3df9', '#8b5cf6', '#a78bfa', '#c084fc', '#ec4899', '#ff3b4a'];
 
   // ---------- state ----------
   const S = {
@@ -140,8 +140,8 @@
     const s = S.settings;
     const r = document.documentElement;
     r.dataset.theme = s.theme || 'oled';
-    r.dataset.surface = ['aero', 'frosted', 'solid'].includes(s.surface) ? s.surface : 'aero';
-    r.style.setProperty('--accent', s.accent || '#8b5cf6');
+    r.dataset.surface = ['aero', 'frosted', 'solid'].includes(s.surface) ? s.surface : 'frosted';
+    r.style.setProperty('--accent', s.accent || '#ff3df9');
     r.style.setProperty('--glass', String((s.glass ?? 60) / 100));
     r.style.setProperty('--bgblur', `${s.bg_blur || 0}px`);
     r.style.setProperty('--dim', String((s.bg_dim ?? 25) / 100));
@@ -186,6 +186,31 @@
     if (v) { S.view = v; render(); }
   }
 
+  // Wordmark in a blocky pixel style (own 5x7 letters, drawn as SVG squares: no font file, no blur).
+  const PIXEL = {
+    S: ['01111', '10000', '10000', '01110', '00001', '00001', '11110'],
+    P: ['11110', '10001', '10001', '11110', '10000', '10000', '10000'],
+    I: ['111', '010', '010', '010', '010', '010', '111'],
+    D: ['11110', '10001', '10001', '10001', '10001', '10001', '11110'],
+    E: ['11111', '10000', '10000', '11110', '10000', '10000', '11111'],
+    R: ['11110', '10001', '10001', '11110', '10100', '10010', '10001'],
+    F: ['11111', '10000', '10000', '11110', '10000', '10000', '10000'],
+    L: ['10000', '10000', '10000', '10000', '10000', '10000', '11111'],
+    A: ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
+    Y: ['10001', '10001', '01010', '00100', '00100', '00100', '00100'],
+  };
+  function pixelWord(word, px = 2.4) {
+    let x = 0, rects = '';
+    for (const ch of word) {
+      const g = PIXEL[ch];
+      if (!g) { x += 3; continue; }
+      g.forEach((row, y) => [...row].forEach((c, i) => { if (c === '1') rects += `<rect x="${x + i}" y="${y}" width="1" height="1"/>`; }));
+      x += g[0].length + 1;
+    }
+    const w = x - 1;
+    return `<svg class="pixel-word" width="${(w + 1) * px}" height="${8 * px}" viewBox="0 0 ${w + 1} 8" shape-rendering="crispEdges" role="img" aria-label="${esc(word)}"><g fill="#000" fill-opacity=".6" transform="translate(1 1)">${rects}</g><g fill="#fff">${rects}</g></svg>`;
+  }
+
   function renderRail() {
     const a = S.acct.accounts.find((x) => x.id === S.acct.selected) || S.acct.accounts[0];
     const v = S.view.name;
@@ -194,7 +219,7 @@
     const mine = S.instances.slice(0, 14).map((i) =>
       `<button class="side-item sub ${v === 'instance' && S.view.id === i.id ? 'active' : ''}" data-act="open-inst" data-id="${esc(i.id)}" title="${esc(i.name)}"><b class="mini-pic" style="--h:${hue(i.name)}">${esc((i.name[0] || '?').toUpperCase())}</b><span>${esc(i.name)}</span>${S.running.has(i.id) ? '<i class="live"></i>' : ''}</button>`).join('');
     $('#rail').innerHTML = `
-      <div class="brand" data-tauri-drag-region><img src="logo.png" alt=""><b>SPIDERFLAYER</b></div>
+      <div class="brand" data-tauri-drag-region><img src="logo.png" alt="">${pixelWord('SPIDERFLAYER')}</div>
       <div class="side-group">
         ${item('home', 'home', 'Home', v === 'home')}
         ${item('browse', 'compass', 'Discover', v === 'browse' || v === 'project')}
@@ -802,7 +827,7 @@
         <div class="section-title" style="margin-top:0">Appearance</div>
         <div class="label" style="margin-bottom:8px">Surface style</div>
         <div class="chips surf-row" style="gap:12px;margin-bottom:18px">
-          ${[['aero', 'Aero', 'Glass with a bright edge'], ['frosted', 'Frosted', 'Soft, matte blur'], ['solid', 'Solid', 'No blur, lightest']].map(([id, n, d]) => `<button class="surf-card ${(s.surface || 'aero') === id ? 'active' : ''}" data-act="surface" data-sf="${id}"><i class="sf-${id}"></i><b>${n}</b><small>${d}</small></button>`).join('')}
+          ${[['aero', 'Aero', 'Glass with a bright edge'], ['frosted', 'Frosted', 'Soft, matte blur'], ['solid', 'Solid', 'No blur, lightest']].map(([id, n, d]) => `<button class="surf-card ${(s.surface || 'frosted') === id ? 'active' : ''}" data-act="surface" data-sf="${id}"><i class="sf-${id}"></i><b>${n}</b><small>${d}</small></button>`).join('')}
         </div>
         <div class="label" style="margin-bottom:8px">Colour mode</div>
         <div class="chips" style="gap:12px;margin-bottom:16px">

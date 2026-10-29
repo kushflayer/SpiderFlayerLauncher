@@ -150,7 +150,7 @@ try:
         # ---- surface styles
         ctx=p.chromium.launch().new_context(viewport={"width":1180,"height":740}); ctx.add_init_script(path="/home/claude/spiderflayer/dev/mock.js")
         pg=ctx.new_page(); pg.goto("http://localhost:8767/index.html"); pg.wait_for_timeout(500)
-        check("default surface is Aero", pg.evaluate("document.documentElement.dataset.surface")=="aero")
+        check("default surface is Frosted", pg.evaluate("document.documentElement.dataset.surface")=="frosted")
         pg.click('[data-to="settings"]'); pg.wait_for_timeout(200)
         check("three surface choices", pg.locator('[data-act="surface"]').count()==3)
         for sf in ("solid","frosted","aero"):

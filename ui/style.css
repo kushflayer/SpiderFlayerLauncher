@@ -6,7 +6,7 @@
 @font-face { font-family: "Speedy"; src: url("fonts/Speedy.ttf") format("truetype"); font-display: swap; }
 
 :root {
-  --accent: #8b5cf6;
+  --accent: #ff3df9;
   --glass: .55;
   --bgblur: 0px;
   --dim: .25;
@@ -118,7 +118,6 @@ h1, h2, h3 { line-height: 1.2; letter-spacing: -.022em; font-weight: 700; }
 #rail { border-radius: var(--r-xl); display: flex; flex-direction: column; padding: 14px 10px 10px; gap: 2px; min-height: 0; }
 .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 14px; }
 .brand img { width: 30px; height: 30px; border-radius: 9px; display: block; }
-.brand b { font-family: "Spiderman", "Speedy", sans-serif; font-size: 19px; font-weight: 400; letter-spacing: .03em; line-height: 1; color: #000; text-shadow: 0 0 1px rgba(255, 255, 255, .95), 0 0 6px rgba(255, 255, 255, .75), 0 0 14px rgba(255, 255, 255, .45); }
 .side-group { display: flex; flex-direction: column; gap: 2px; }
 .side-item {
   display: flex; align-items: center; gap: 11px; height: 34px; padding: 0 10px; border-radius: 10px;
@@ -451,4 +450,7 @@ input[type=color] { width: 34px; height: 28px; padding: 0; border: 0; background
 
 /* Speedy has one weight: keep the browser from faking bold on top of it, and let headings use size instead. */
 body, button, input, select, textarea { font-family: "Speedy", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
-b, strong, h1, h2, h3, .btn, .tab { font-synthesis: none; }
+html, body, * { font-synthesis: none; }
+/* Speedy has one weight: never fake a bolder one (it smears the letters into a glow). */
+body * { font-weight: 400 !important; }
+.pixel-word { display: block; }

@@ -2,7 +2,7 @@
 (() => {
   window.SF_MS = !location.search.includes('msoff');
   const listeners = {};
-  let settings = { curseforge_key: '', ms_client_id: '', java_path: '', default_memory_mb: 2048, background: null, bg_blur: 0, bg_dim: 25, glass: 60, accent: '#8b5cf6', theme: 'oled', surface: 'aero', hide_on_launch: true };
+  let settings = { curseforge_key: '', ms_client_id: '', java_path: '', default_memory_mb: 2048, background: null, bg_blur: 0, bg_dim: 45, glass: 56, accent: '#ff3df9', theme: 'oled', surface: 'frosted', hide_on_launch: true };
   let instances = [
     { id: 'fabric-1-21-1', name: 'Vanilla+ Fabric', mc_version: '1.21.1', loader: 'fabric', loader_version: '0.16.9', version_id: 'x', memory_mb: 0, java_args: '', created: 1, last_played: 1700000000 },
     { id: 'forge-1-20-1', name: 'Create: Above and Beyond', mc_version: '1.20.1', loader: 'forge', loader_version: '47.3.0', version_id: 'y', memory_mb: 4096, java_args: '', created: 2, last_played: 1699000000 },

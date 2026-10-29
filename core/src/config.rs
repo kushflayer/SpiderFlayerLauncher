@@ -103,11 +103,11 @@ impl Default for Settings {
             default_memory_mb: 2048,
             background: None,
             bg_blur: 0,
-            bg_dim: 25,
-            glass: 60,
-            accent: "#8b5cf6".to_string(),
+            bg_dim: 45,
+            glass: 56,
+            accent: "#ff3df9".to_string(),
             theme: "oled".to_string(),
-            surface: "aero".to_string(),
+            surface: "frosted".to_string(),
             hide_on_launch: true,
         }
     }
