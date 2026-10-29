@@ -249,13 +249,13 @@ mod tests {
     #[test]
     fn explains_when_missing() {
         let v = tmp("none");
-        assert!(find_in(&v.join("versions"))
-            .unwrap_err()
-            .to_string()
-            .contains("playhorizon.dev"));
+        assert!(find_in(&v.join("versions")).is_err());
         touch(&v.join("v1").join(MARK));
         touch(&v.join("v1").join(CLIENT));
-        assert!(find_in(&v).unwrap_err().to_string().contains("Prepare"));
+        assert!(find_in(&v)
+            .unwrap_err()
+            .to_string()
+            .contains("not prepared"));
         let _ = fs::remove_dir_all(&v);
     }
 

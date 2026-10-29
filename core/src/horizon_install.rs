@@ -331,6 +331,9 @@ fn run_preparer(cmd: &mut Command, java_home: &Path, rep: Reporter) -> Result<()
 /// Makes sure a prepared Horizon exists, installing and preparing it if needed.
 /// Reuses a Horizon already installed by Horizon's own launcher.
 pub fn ensure(paths: &Paths, rep: Reporter) -> Result<Install> {
+    // One install at a time: a Play pressed during the background install waits for it.
+    static BUSY: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _guard = BUSY.lock().unwrap_or_else(|e| e.into_inner());
     if let Ok(found) = horizon::find(paths) {
         return Ok(found);
     }

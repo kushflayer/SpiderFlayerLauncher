@@ -551,6 +551,32 @@ fn main() {
             running: Mutex::new(HashMap::new()),
             ms_cancel: Arc::new(AtomicBool::new(false)),
         })
+        .setup(|app| {
+            // Get Rust ready in the background so it is already installed when the player
+            // presses Play: only once a Microsoft account is signed in, and only if the
+            // default Rust instance is still there.
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                let state = handle.state::<AppState>();
+                let paths = state.paths.clone();
+                let has_rust = paths
+                    .instance_dir(horizon::DEFAULT_ID)
+                    .map(|d| d.join("instance.json").exists())
+                    .unwrap_or(false);
+                let microsoft = auth::selected(&auth::load(&paths))
+                    .map(|a| a.kind == "microsoft")
+                    .unwrap_or(false);
+                if !has_rust || !microsoft || horizon::find(&paths).is_ok() {
+                    return;
+                }
+                let rep = emit_progress(&handle);
+                if let Err(e) = horizon_install::ensure(&paths, &rep) {
+                    let _ = handle.emit("toast-error", format!("Rust (Horizon) setup: {e:#}"));
+                }
+                let _ = handle.emit("progress-done", ());
+            });
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             get_settings,
             save_settings,

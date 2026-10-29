@@ -1145,6 +1145,8 @@
     render();
 
     listen('progress', (ev) => showProgress(ev.payload));
+    listen('progress-done', () => hideProgress());
+    listen('toast-error', (ev) => fail(ev.payload));
     listen('log', (ev) => {
       const { id, line } = ev.payload;
       const arr = (S.logs[id] = S.logs[id] || []);
